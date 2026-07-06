@@ -1,0 +1,1 @@
+const t=o=>`₩${o.toLocaleString()}`,a=o=>o>=1e8?`₩${(o/1e8).toFixed(1)}억`:o>=1e4?`₩${Math.round(o/1e4).toLocaleString()}만`:`₩${o.toLocaleString()}`,e=o=>o.slice(0,10).replace(/-/g,".");export{e as a,t as b,a as f};
