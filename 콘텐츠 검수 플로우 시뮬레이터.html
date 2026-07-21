@@ -1,0 +1,694 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<title>콘텐츠 검수 플로우 시뮬레이터</title>
+<style>
+  :root {
+    --bg: #F4F4F7; --panel: #FFFFFF; --ink: #1D1B26; --muted: #6B6878; --line: #E4E2EC;
+    --accent: #6D5AE6; --accent-ink: #fff; --accent-soft: #EFECFD;
+    --admin: #6D5AE6; --admin-soft: #EFECFD;
+    --creator: #1D6FE0; --creator-soft: #E7F0FD;
+    --reviewer: #B9770E; --reviewer-soft: #FAF0DC;
+    --pass: #15803D; --pass-soft: #E3F3E9;
+    --warn: #C2410C; --warn-soft: #FBEBE2;
+    --db: #0F766E; --db-soft: #E0F2F0;
+    --flash: #6D5AE6;
+    --shadow: 0 1px 2px rgba(29,27,38,.06), 0 6px 20px rgba(29,27,38,.07);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141319; --panel: #1F1E28; --ink: #EDECF4; --muted: #9B98AB; --line: #34323F;
+      --accent: #9D8DF7; --accent-ink: #16151C; --accent-soft: #2B2842;
+      --admin: #9D8DF7; --admin-soft: #2B2842;
+      --creator: #6AA5F0; --creator-soft: #172A44;
+      --reviewer: #E3A94F; --reviewer-soft: #382C13;
+      --pass: #57C77E; --pass-soft: #16321F;
+      --warn: #F0925A; --warn-soft: #38220F;
+      --db: #3EC1B4; --db-soft: #103230;
+      --flash: #9D8DF7;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 6px 20px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #141319; --panel: #1F1E28; --ink: #EDECF4; --muted: #9B98AB; --line: #34323F;
+    --accent: #9D8DF7; --accent-ink: #16151C; --accent-soft: #2B2842;
+    --admin: #9D8DF7; --admin-soft: #2B2842;
+    --creator: #6AA5F0; --creator-soft: #172A44;
+    --reviewer: #E3A94F; --reviewer-soft: #382C13;
+    --pass: #57C77E; --pass-soft: #16321F;
+    --warn: #F0925A; --warn-soft: #38220F;
+    --db: #3EC1B4; --db-soft: #103230;
+    --flash: #9D8DF7;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 6px 20px rgba(0,0,0,.35);
+  }
+  :root[data-theme="light"] {
+    --bg: #F4F4F7; --panel: #FFFFFF; --ink: #1D1B26; --muted: #6B6878; --line: #E4E2EC;
+    --accent: #6D5AE6; --accent-ink: #fff; --accent-soft: #EFECFD;
+    --admin: #6D5AE6; --admin-soft: #EFECFD;
+    --creator: #1D6FE0; --creator-soft: #E7F0FD;
+    --reviewer: #B9770E; --reviewer-soft: #FAF0DC;
+    --pass: #15803D; --pass-soft: #E3F3E9;
+    --warn: #C2410C; --warn-soft: #FBEBE2;
+    --db: #0F766E; --db-soft: #E0F2F0;
+    --flash: #6D5AE6;
+    --shadow: 0 1px 2px rgba(29,27,38,.06), 0 6px 20px rgba(29,27,38,.07);
+  }
+
+  /* screens are depictions of the real (light) product UI — fixed light regardless of theme */
+  .screen {
+    --s-bg: #FFFFFF; --s-ink: #1F2430; --s-muted: #707685; --s-line: #E8E9EF; --s-soft: #F6F7FA;
+  }
+
+  * { box-sizing: border-box; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Malgun Gothic", "Segoe UI", sans-serif;
+    font-size: 15px; line-height: 1.6; -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 0 20px; }
+
+  /* ═══ header ═══ */
+  .top { border-bottom: 1px solid var(--line); background: var(--panel); }
+  .top .wrap { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 14px 20px; }
+  .top h1 { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; margin: 0; }
+  .top h1 small { color: var(--muted); font-weight: 600; font-size: 13px; margin-left: 8px; }
+  .top .spacer { flex: 1; }
+  .stepctl { display: flex; align-items: center; gap: 8px; }
+  .stepctl button {
+    all: unset; cursor: pointer; font-weight: 700; font-size: 13.5px; padding: 7px 16px;
+    border-radius: 9px; border: 1.5px solid var(--line); color: var(--ink); background: var(--panel);
+  }
+  .stepctl button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .stepctl button:disabled { opacity: .35; cursor: default; }
+  .stepctl button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .stepctl .count { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 13.5px; color: var(--muted); padding: 0 4px; }
+  .replay { font-size: 13px; }
+
+  /* ═══ timeline ═══ */
+  .timeline { padding: 18px 0 4px; }
+  .tl { display: flex; gap: 0; overflow-x: auto; padding-bottom: 12px; }
+  .tl-step { display: flex; align-items: flex-start; flex: 1 0 auto; }
+  .tl-step button { all: unset; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 6px; width: 108px; text-align: center; }
+  .tl-step button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
+  .tl-node {
+    width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
+    font-size: 12.5px; font-weight: 800; font-variant-numeric: tabular-nums;
+    background: var(--panel); border: 2px solid var(--line); color: var(--muted); transition: all .18s;
+  }
+  .tl-lbl { font-size: 11.5px; font-weight: 600; color: var(--muted); line-height: 1.3; }
+  .tl-who { font-size: 10.5px; font-weight: 700; padding: 1px 8px; border-radius: 999px; }
+  .tl-step.done .tl-node { border-color: var(--ac); color: var(--ac); background: var(--ac-soft); }
+  .tl-step.active .tl-node { background: var(--ac); border-color: var(--ac); color: #fff; transform: scale(1.15); }
+  .tl-step.active .tl-lbl { color: var(--ink); font-weight: 700; }
+  .tl-bar { flex: 1 1 18px; min-width: 10px; height: 2px; background: var(--line); margin-top: 14px; }
+  .tl-step.done .tl-bar { background: color-mix(in srgb, var(--accent) 50%, var(--line)); }
+  .tl-step:last-child .tl-bar { display: none; }
+
+  /* ═══ action strip ═══ */
+  .action {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px;
+    background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--ac, var(--accent));
+    border-radius: 12px; padding: 13px 18px; box-shadow: var(--shadow); margin: 6px 0 18px;
+  }
+  .action .who { font-size: 12px; font-weight: 800; padding: 3px 11px; border-radius: 999px; background: var(--ac-soft); color: var(--ac); white-space: nowrap; }
+  .action .what { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
+  .action .hint { font-size: 13px; color: var(--muted); flex-basis: 100%; }
+  .action .hint b { color: var(--warn); }
+
+  /* ═══ stage: three screens ═══ */
+  .stage { display: grid; grid-template-columns: 1.25fr 1fr 1fr; gap: 14px; align-items: start; }
+  @media (max-width: 1080px) { .stage { grid-template-columns: 1fr; } }
+
+  .frame { border-radius: 14px; box-shadow: var(--shadow); border: 1px solid var(--line); overflow: hidden; background: var(--panel); transition: box-shadow .3s; }
+  .frame.flash { animation: ring 1.4s ease-out; }
+  @keyframes ring {
+    0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--fc, var(--flash)) 55%, transparent), var(--shadow); }
+    70%  { box-shadow: 0 0 0 9px color-mix(in srgb, var(--fc, var(--flash)) 0%, transparent), var(--shadow); }
+    100% { box-shadow: var(--shadow); }
+  }
+  .chrome {
+    display: flex; align-items: center; gap: 8px; padding: 9px 14px;
+    background: var(--ac-soft); border-bottom: 1px solid var(--line);
+  }
+  .chrome .dots { display: flex; gap: 4px; }
+  .chrome .dots i { width: 8px; height: 8px; border-radius: 50%; background: color-mix(in srgb, var(--ac) 35%, transparent); }
+  .chrome .name { font-size: 12.5px; font-weight: 800; color: var(--ac); letter-spacing: .02em; }
+  .chrome .upd {
+    margin-left: auto; font-size: 11px; font-weight: 800; color: var(--pass);
+    background: var(--pass-soft); padding: 1px 9px; border-radius: 999px; opacity: 0; transition: opacity .3s;
+  }
+  .frame.flash .chrome .upd { opacity: 1; }
+
+  /* screen interiors */
+  .screen { background: var(--s-bg); color: var(--s-ink); padding: 16px; min-height: 300px; font-size: 13px; }
+  .screen h2 { font-size: 15.5px; margin: 0 0 2px; letter-spacing: -0.01em; }
+  .screen .sub { font-size: 11.5px; color: var(--s-muted); margin: 0 0 12px; }
+  .s-el { transition: background .3s; border-radius: 8px; }
+  .s-el.hl { animation: cellflash 1.6s ease-out; }
+  @keyframes cellflash {
+    0% { background: color-mix(in srgb, var(--flash) 22%, transparent); }
+    100% { background: transparent; }
+  }
+
+  /* admin board */
+  .cols { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 12px; }
+  .col {
+    flex: 0 0 auto; text-align: center; border: 1px solid var(--s-line); border-radius: 8px;
+    padding: 4px 8px 3px; min-width: 58px; background: var(--s-soft); transition: all .25s;
+  }
+  .col .n { font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; color: #B6BAC5; }
+  .col .t { font-size: 9.5px; font-weight: 600; color: var(--s-muted); line-height: 1.25; white-space: nowrap; }
+  .col.on { background: #EFECFD; border-color: #6D5AE6; }
+  .col.on .n { color: #6D5AE6; }
+  .col.on .t { color: #6D5AE6; font-weight: 700; }
+  .col.newcol { border-style: dashed; }
+  .col .tag { display: block; font-size: 8px; font-weight: 800; color: #15803D; }
+
+  .card { border: 1px solid var(--s-line); border-radius: 11px; padding: 12px 14px; }
+  .card .row1 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .card .title { font-weight: 800; font-size: 14px; }
+  .pill { font-size: 10.5px; font-weight: 700; padding: 2px 9px; border-radius: 999px; background: #EFECFD; color: #6D5AE6; white-space: nowrap; }
+  .pill.green { background: #E3F3E9; color: #15803D; }
+  .pill.orange { background: #FBEBE2; color: #C2410C; }
+  .pill.gray { background: #F0F1F5; color: #707685; }
+  .card .meta { font-size: 11.5px; color: var(--s-muted); margin: 5px 0 8px; }
+  .card .meta b { color: #1D6FE0; font-weight: 700; }
+  .links { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 10px; }
+  .lchip { font-size: 10.5px; font-weight: 600; color: #6D5AE6; border: 1px solid #E0DBF8; padding: 2px 9px; border-radius: 7px; background: #FBFAFE; }
+  .hist { border-top: 1px dashed var(--s-line); padding-top: 8px; margin-top: 2px; font-size: 11.5px; color: var(--s-muted); }
+  .hist div { margin: 2px 0; }
+  .hist .ok { color: #15803D; font-weight: 700; }
+  .actrow { display: flex; gap: 7px; margin-top: 11px; flex-wrap: wrap; }
+
+  .btn {
+    all: unset; cursor: pointer; font-size: 12px; font-weight: 700; padding: 6px 14px; border-radius: 8px;
+    border: 1.5px solid var(--s-line); color: var(--s-ink); background: var(--s-bg); transition: transform .1s;
+  }
+  .btn:focus-visible { outline: 2px solid #6D5AE6; outline-offset: 2px; }
+  .btn.p-admin { background: #6D5AE6; border-color: #6D5AE6; color: #fff; }
+  .btn.p-creator { background: #1D6FE0; border-color: #1D6FE0; color: #fff; }
+  .btn.p-reviewer { background: #6D5AE6; border-color: #6D5AE6; color: #fff; }
+  .btn.ghost { color: #6D5AE6; border-color: #E0DBF8; }
+  .btn.danger { color: #B91C1C; border-color: #F3CBCB; }
+  .btn.static { cursor: default; }
+  .btn.next-action { position: relative; animation: pulse 1.6s ease-in-out infinite; }
+  .btn.next-action:hover { transform: scale(1.04); }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(109,90,230,.45); }
+    50% { box-shadow: 0 0 0 7px rgba(109,90,230,0); }
+  }
+  .clicktip { font-size: 10.5px; font-weight: 700; color: #6D5AE6; margin-top: 6px; }
+
+  /* creator / reviewer screens */
+  .search { display: flex; gap: 6px; margin-bottom: 10px; }
+  .search input {
+    flex: 1; border: 1px solid var(--s-line); border-radius: 8px; padding: 6px 10px; font-size: 12px;
+    color: var(--s-ink); background: var(--s-bg); font-family: inherit; pointer-events: none;
+  }
+  .search .go { all: unset; font-size: 12px; font-weight: 700; padding: 6px 14px; border-radius: 8px; color: #fff; }
+  .found { font-size: 11.5px; font-weight: 600; padding: 6px 10px; border-radius: 8px; margin-bottom: 10px; }
+  .stats { display: flex; gap: 8px; margin-bottom: 10px; }
+  .stat { flex: 1; border: 1px solid var(--s-line); border-radius: 9px; text-align: center; padding: 7px 4px 5px; }
+  .stat .n { font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .stat .t { font-size: 10px; color: var(--s-muted); font-weight: 600; }
+  table.mini { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+  table.mini th { text-align: left; color: var(--s-muted); font-size: 10px; font-weight: 700; padding: 4px 6px; border-bottom: 1px solid var(--s-line); white-space: nowrap; }
+  table.mini td { padding: 7px 6px; border-bottom: 1px solid var(--s-soft); vertical-align: middle; }
+  .empty { text-align: center; color: var(--s-muted); font-size: 12px; padding: 34px 8px; border: 1.5px dashed var(--s-line); border-radius: 10px; }
+
+  /* scorecard (reviewer) */
+  .score-line { display: flex; justify-content: space-between; font-size: 11.5px; padding: 3px 0; color: var(--s-muted); }
+  .score-line b { color: var(--s-ink); font-variant-numeric: tabular-nums; }
+  .total { display: flex; justify-content: space-between; border-top: 1px solid var(--s-line); margin-top: 6px; padding-top: 7px; font-weight: 800; font-size: 13px; }
+  .total .val { color: #6D5AE6; font-variant-numeric: tabular-nums; }
+
+  /* form (creator) */
+  .form-line { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 11.5px; }
+  .form-line label { width: 84px; color: var(--s-muted); font-weight: 600; flex: 0 0 auto; }
+  .form-line .fld { flex: 1; border: 1px solid var(--s-line); border-radius: 7px; padding: 5px 9px; background: var(--s-soft); color: var(--s-ink); min-height: 16px; }
+
+  /* ═══ DB strip ═══ */
+  .dbwrap { margin-top: 16px; }
+  .db-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .db-head .ico {
+    width: 26px; height: 26px; border-radius: 8px; background: var(--db-soft); color: var(--db);
+    display: grid; place-items: center; font-size: 13px; font-weight: 800;
+  }
+  .db-head h3 { margin: 0; font-size: 14.5px; letter-spacing: -0.01em; }
+  .db-head p { margin: 0; font-size: 12px; color: var(--muted); }
+  .dbs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+  @media (max-width: 1080px) { .dbs { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 620px) { .dbs { grid-template-columns: 1fr; } }
+  .dbt {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 11px; overflow: hidden;
+    box-shadow: var(--shadow); transition: box-shadow .3s;
+  }
+  .dbt.flash { animation: ring 1.4s ease-out; --fc: var(--db); }
+  .dbt header {
+    display: flex; align-items: center; gap: 6px; padding: 7px 12px;
+    background: var(--db-soft); border-bottom: 1px solid var(--line);
+    font-size: 12px; font-weight: 800; color: var(--db);
+  }
+  .dbt header .w {
+    margin-left: auto; font-size: 10px; font-weight: 800; background: var(--db); color: var(--panel);
+    padding: 1px 7px; border-radius: 999px; opacity: 0; transition: opacity .3s;
+  }
+  .dbt.flash header .w { opacity: 1; }
+  .dbt .rows { padding: 9px 12px 11px; font-size: 12px; min-height: 64px; }
+  .dbt .kv { display: flex; gap: 8px; padding: 2.5px 0; }
+  .dbt .kv .k { color: var(--muted); flex: 0 0 76px; font-size: 11px; font-weight: 600; }
+  .dbt .kv .v { font-weight: 600; font-variant-numeric: tabular-nums; word-break: break-all; }
+  .dbt .kv .v.badge-v { font-weight: 800; color: var(--accent); }
+  .dbt .none { color: var(--muted); font-size: 11.5px; text-align: center; padding: 16px 0; opacity: .6; }
+  .dbt .kv.hl-row { animation: cellflash 1.6s ease-out; border-radius: 6px; }
+
+  /* ═══ footer sections ═══ */
+  .foot-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 40px 0 0; }
+  @media (max-width: 900px) { .foot-grid { grid-template-columns: 1fr; } }
+  .foot-card { background: var(--panel); border: 1px solid var(--line); border-radius: 13px; padding: 20px 22px; box-shadow: var(--shadow); }
+  .foot-card h3 { margin: 0 0 10px; font-size: 15.5px; letter-spacing: -0.01em; }
+  .foot-card ol { margin: 0; padding-left: 20px; }
+  .foot-card li { font-size: 13.5px; margin: 7px 0; color: var(--muted); }
+  .foot-card li b { color: var(--ink); }
+  .foot-card .np { font-size: 13.5px; color: var(--muted); margin: 0 0 6px; }
+  .loopchips { display: flex; flex-direction: column; gap: 8px; }
+  .loopchip { font-size: 12.5px; padding: 8px 12px; border-radius: 9px; background: var(--warn-soft); border-left: 3px solid var(--warn); }
+  .loopchip.rej { background: color-mix(in srgb, var(--warn-soft) 40%, var(--panel)); border-color: #B91C1C; }
+  .loopchip b { color: var(--warn); }
+  .loopchip.rej b { color: #B91C1C; }
+  footer { text-align: center; color: var(--muted); font-size: 12px; padding: 36px 0 44px; }
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <h1>콘텐츠 자산 검수 플로우<small>액션 → 데이터 → 세 화면이 함께 움직입니다</small></h1>
+    <span class="spacer"></span>
+    <div class="stepctl">
+      <button id="prevBtn" type="button">← 이전</button>
+      <span class="count" id="stepCount"></span>
+      <button id="nextBtn" type="button" class="primary">다음 →</button>
+      <button id="replayBtn" type="button" class="replay">처음부터 ↺</button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="timeline">
+    <div class="tl" id="tl" role="tablist" aria-label="플로우 단계"></div>
+  </div>
+
+  <div class="action" id="actionStrip">
+    <span class="who" id="aWho"></span>
+    <span class="what" id="aWhat"></span>
+    <span class="hint" id="aHint"></span>
+  </div>
+
+  <div class="stage">
+    <!-- ADMIN -->
+    <div class="frame" id="fAdmin" style="--ac:var(--admin); --ac-soft:var(--admin-soft)">
+      <div class="chrome">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="name">관리자 · ERP 콘텐츠 자산</span>
+        <span class="upd">방금 업데이트됨</span>
+      </div>
+      <div class="screen" id="sAdmin"></div>
+    </div>
+    <!-- CREATOR -->
+    <div class="frame" id="fCreator" style="--ac:var(--creator); --ac-soft:var(--creator-soft)">
+      <div class="chrome">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="name">크리에이터 · 검수현황 조회</span>
+        <span class="upd">방금 업데이트됨</span>
+      </div>
+      <div class="screen" id="sCreator"></div>
+    </div>
+    <!-- REVIEWER -->
+    <div class="frame" id="fReviewer" style="--ac:var(--reviewer); --ac-soft:var(--reviewer-soft)">
+      <div class="chrome">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="name">검수자 · 콘텐츠 검수</span>
+        <span class="upd">방금 업데이트됨</span>
+      </div>
+      <div class="screen" id="sReviewer"></div>
+    </div>
+  </div>
+
+  <!-- DB -->
+  <div class="dbwrap">
+    <div class="db-head">
+      <span class="ico">DB</span>
+      <div>
+        <h3>공유 데이터베이스</h3>
+        <p>세 화면이 모두 이 데이터를 읽고 씁니다 — 기록이 바뀌면 화면도 함께 바뀝니다</p>
+      </div>
+    </div>
+    <div class="dbs">
+      <div class="dbt" id="dbContent"><header>콘텐츠<span class="w">기록됨</span></header><div class="rows" id="dbContentRows"></div></div>
+      <div class="dbt" id="dbR1"><header>1차 검수 내용<span class="w">기록됨</span></header><div class="rows" id="dbR1Rows"></div></div>
+      <div class="dbt" id="dbR2"><header>2차 검수 내용<span class="w">기록됨</span></header><div class="rows" id="dbR2Rows"></div></div>
+      <div class="dbt" id="dbFin"><header>검수 완료 내용<span class="w">기록됨</span></header><div class="rows" id="dbFinRows"></div></div>
+      <div class="dbt" id="dbCr"><header>크리에이터<span class="w">기록됨</span></header><div class="rows" id="dbCrRows"></div></div>
+    </div>
+  </div>
+
+  <!-- footer info -->
+  <div class="foot-grid">
+    <div class="foot-card">
+      <h3>통과하지 못하면 — 수정 루프와 반려</h3>
+      <p class="np">위 시뮬레이션은 한 번에 통과한 경우입니다. 통과하지 못하면:</p>
+      <div class="loopchips">
+        <div class="loopchip"><b>AI 검수 불통과</b> → 「1차 수정 요청」— 크리에이터가 사유 확인 후 1주 내 수정, 「수정 완료」 누르면 재진행</div>
+        <div class="loopchip"><b>전문가 심사 80점 미만</b> → 「2차 수정 요청」— 크리에이터 수정 후 최종 승인 단계로 재진행</div>
+        <div class="loopchip rej"><b>최종 승인에서 반려</b> → 사유가 기록되고 크리에이터 화면에서 확인 가능, 파이프라인 종료</div>
+      </div>
+    </div>
+    <div class="foot-card">
+      <h3>컨펌 요청 사항</h3>
+      <ol>
+        <li>전문가 심사 통과 기준 — 5개 영역 × 20점, <b>총점 80점 이상</b></li>
+        <li>수정 마감 — 1차는 <b>요청 후 1주</b>, 2차는 검수자 지정 마감일 (경과 시 리마인드 메일)</li>
+        <li>최종 승인·반려 권한 — <b>관리자(내부) 결정</b></li>
+        <li>개인정보(주민번호·계좌)는 <b>최종 승인 후에만 수집</b>, 화면에는 마스킹 표시</li>
+        <li>순서 — <b>지급(정산) 완료 후 출시</b> 진행</li>
+      </ol>
+    </div>
+  </div>
+
+  <footer>콘텐츠 자산 검수 시스템 · 플로우 시뮬레이션 보고 — 화면 속 반짝이는 버튼을 눌러 진행할 수 있습니다</footer>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var ACTORS = {
+    system:   { name: '시스템',     c: 'var(--muted)',    s: 'var(--line)' },
+    admin:    { name: '관리자',     c: 'var(--admin)',    s: 'var(--admin-soft)' },
+    creator:  { name: '크리에이터', c: 'var(--creator)',  s: 'var(--creator-soft)' },
+    reviewer: { name: '검수자',     c: 'var(--reviewer)', s: 'var(--reviewer-soft)' }
+  };
+
+  // 8 states (0..7). Each describes the action that JUST happened + resulting data/screens.
+  var STEPS = [
+    { short: '콘텐츠 등록', who: 'creator',
+      what: '박영수 님의 「감정 날씨 일기 프로젝트」가 자산으로 등록되었습니다',
+      hint: '검수 상태 「1차 검수 대기」로 파이프라인에 들어옵니다. 관리자 화면의 반짝이는 버튼을 눌러 진행해 보세요.',
+      flash: [] },
+    { short: 'AI 1차 검수', who: 'admin',
+      what: '관리자가 [AI 1차 검수 실행]을 눌렀습니다',
+      hint: 'AI가 맞춤법·표현·교육과정 적합성·개인정보 노출 등 10개 항목을 자동 점검 → 통과. 불통과였다면 <b>「1차 수정 요청」</b>으로 바뀌고 크리에이터에게 수정을 요청합니다.',
+      flash: ['fAdmin', 'fCreator', 'dbContent', 'dbR1'] },
+    { short: '검수자 배정', who: 'admin',
+      what: '관리자가 전문가 자문단에서 정하늘 교수를 배정했습니다 (마감 7/1)',
+      hint: '배정 안내 메일이 발송되고, 검수자 화면에 배정된 콘텐츠가 나타납니다.',
+      flash: ['fAdmin', 'fReviewer', 'dbContent', 'dbR2'] },
+    { short: '전문가 심사', who: 'reviewer',
+      what: '정하늘 교수가 채점을 완료했습니다 — 84점 / 100점 (통과)',
+      hint: '5개 영역 × 20점 채점, 80점 이상 통과. 미만이었다면 <b>「2차 수정 요청」</b>으로 바뀌고 크리에이터가 수정 후 재진행합니다.',
+      flash: ['fAdmin', 'fCreator', 'fReviewer', 'dbContent', 'dbR2'] },
+    { short: '최종 승인', who: 'admin',
+      what: '관리자가 검수 이력을 확인하고 [최종 승인]을 눌렀습니다',
+      hint: '기준 미달로 판단되면 <b>반려</b> 처리됩니다. 승인되면 크리에이터에게 지급 정보 입력이 안내되고, 관리자 보드의 「지급 정보 대기」(신규 컬럼)에서 추적합니다.',
+      flash: ['fAdmin', 'fCreator', 'dbContent', 'dbFin'] },
+    { short: '지급 정보 입력', who: 'creator',
+      what: '박영수 님이 지급 정보(주민번호·주소·계좌)를 제출했습니다',
+      hint: '개인정보는 승인된 크리에이터에게만, 이 시점에만 수집됩니다. 제출 즉시 「지급 예정」으로 바뀝니다.',
+      flash: ['fAdmin', 'fCreator', 'dbContent', 'dbCr'] },
+    { short: '지급 처리', who: 'admin',
+      what: '관리자가 지급 정보를 확인하고 [지급 처리]를 눌렀습니다',
+      hint: '지급액 ₩5,000 · 지급일이 기록됩니다.',
+      flash: ['fAdmin', 'fCreator', 'dbContent'] },
+    { short: '출시', who: 'admin',
+      what: '관리자가 [출시]를 눌렀습니다 — 판매 시작 🎉',
+      hint: '출시일이 기록되고, 콘텐츠는 출시 완료 목록으로 이동합니다.',
+      flash: ['fAdmin', 'fCreator', 'dbContent'] }
+  ];
+
+  // 검수상태 per step
+  var STATUS = ['1차 검수 대기', '2차 검수자 배정 대기', '2차 검수 대기', '최종 승인 대기', '검수완료 (통과)', '지급 예정', '지급 완료', '출시'];
+
+  var COLS = [
+    { t: '1차 검수(AI)', at: [0] },
+    { t: '2차 검수', at: [1, 2] },
+    { t: '최종 승인 대기', at: [3] },
+    { t: '수정 요청', at: [] },
+    { t: '지급 정보 대기', at: [4], isNew: true },
+    { t: '지급 예정', at: [5] },
+    { t: '출시 예정', at: [6] },
+    { t: '출시 완료', at: [7] },
+    { t: '반려', at: [] }
+  ];
+
+  var cur = 0;
+  var $ = function (id) { return document.getElementById(id); };
+
+  function esc(s) { return s; } // trusted local strings only
+
+  /* ── mini-UI action button that advances the sim ── */
+  function nextBtnHTML(label, actorCls) {
+    return '<button type="button" class="btn ' + actorCls + ' next-action" data-advance="1">' + label + '</button>';
+  }
+
+  /* ═══ ADMIN screen ═══ */
+  function renderAdmin(s) {
+    var h = '<h2>콘텐츠 자산</h2><p class="sub">검수 단계에 있는 미출시 디지털 콘텐츠를 관리합니다</p>';
+
+    h += '<div class="cols">';
+    COLS.forEach(function (c) {
+      var on = c.at.indexOf(s) >= 0;
+      h += '<div class="col' + (on ? ' on' : '') + (c.isNew ? ' newcol' : '') + '">' +
+        (c.isNew ? '<span class="tag">신규</span>' : '') +
+        '<div class="n">' + (on ? 1 : 0) + '</div><div class="t">' + c.t + '</div></div>';
+    });
+    h += '</div>';
+
+    var badge = '<span class="pill s-el hl-key">' + STATUS[s] + '</span>';
+    if (s === 7) badge = '<span class="pill green s-el hl-key">출시</span>';
+
+    h += '<div class="card"><div class="row1"><span class="title">감정 날씨 일기 프로젝트</span>' + badge +
+      '<span class="pill gray">B-01 · 정서 — 감정 이해와 표현</span></div>' +
+      '<div class="meta"><b>박영수</b> · 서울초등학교 · 초등 저학년 · 1인용 · ₩5,000 · 제출 2026.06.15</div>' +
+      '<div class="links"><span class="lchip">스튜디오 ↗</span><span class="lchip">기획서(PPT) ↗</span><span class="lchip">기획서(Word) ↗</span><span class="lchip">운영 가이드 ↗</span></div>';
+
+    var hist = '';
+    if (s >= 1) hist += '<div>1차 검수 (AI, 2026.06.16) <span class="ok">✓ 통과</span></div>';
+    if (s >= 3) hist += '<div>2차 심사 (정하늘, 2026.06.24) <b class="ok">84점 / 100점 (통과)</b></div>';
+    if (s >= 4) hist += '<div>최종 승인 (2026.07.02) <span class="ok">✓ 검수 완료</span></div>';
+    if (s >= 6) hist += '<div>지급 완료 (2026.07.05) · ₩5,000</div>';
+    if (s >= 7) hist += '<div>출시일 2026.07.10 — 판매 중</div>';
+    if (hist) h += '<div class="hist s-el hl-key2">' + hist + '</div>';
+
+    h += '<div class="actrow">';
+    if (s === 0) h += nextBtnHTML('✨ AI 1차 검수 실행', 'p-admin');
+    if (s === 1) h += nextBtnHTML('2차 검수 진행', 'p-admin');
+    if (s === 2) h += '<button type="button" class="btn ghost static">2차 검수 현황 · 마감 D-7</button><button type="button" class="btn static">리마인드 메일</button>';
+    if (s === 3) h += nextBtnHTML('✅ 최종 승인', 'p-admin') + '<button type="button" class="btn danger static">반려</button>';
+    if (s === 4) h += '<button type="button" class="btn ghost static">지급 정보 입력 대기 중 · 리마인드</button>';
+    if (s === 5) h += nextBtnHTML('지급 처리', 'p-admin');
+    if (s === 6) h += nextBtnHTML('🚀 출시', 'p-admin');
+    if (s === 7) h += '<button type="button" class="btn ghost static">출시된 콘텐츠 보기 ↗</button>';
+    h += '</div>';
+
+    if (s === 2) h += '<div class="clicktip">검수자 화면에서 심사가 진행되기를 기다리는 중…</div>';
+    if (s === 4) h += '<div class="clicktip">크리에이터 화면에서 지급 정보 입력을 기다리는 중…</div>';
+
+    h += '</div>';
+    return h;
+  }
+
+  /* ═══ CREATOR screen ═══ */
+  function renderCreator(s) {
+    var h = '<h2>검수현황 조회</h2><p class="sub">성함을 입력하시면 담당 콘텐츠와 검수 현황을 확인할 수 있습니다</p>';
+    h += '<div class="search"><input value="박영수" readonly><button type="button" class="go" style="background:#1D6FE0">조회</button></div>';
+    h += '<div class="found" style="background:#E9F7EC;color:#15803D">1건의 콘텐츠를 찾았습니다.</div>';
+    h += '<div class="stats"><div class="stat"><div class="n">1</div><div class="t">전체</div></div>' +
+      '<div class="stat"><div class="n">0</div><div class="t">수정 요청</div></div></div>';
+
+    var statusPill;
+    if (s >= 7) statusPill = '<span class="pill green s-el hl-key">출시 🎉</span>';
+    else statusPill = '<span class="pill s-el hl-key" style="background:#E7F0FD;color:#1D6FE0">' + STATUS[s] + '</span>';
+
+    var action = '—';
+    if (s === 0) action = '<span style="color:#707685;font-size:11px">AI 검수 예정</span>';
+    if (s === 1 || s === 2) action = '<span style="color:#707685;font-size:11px">검수 진행 중</span>';
+    if (s === 3) action = '<span style="color:#707685;font-size:11px">승인 대기</span>';
+    if (s === 4) action = nextBtnHTML('개인정보 입력', 'p-creator');
+    if (s === 5) action = '<span style="color:#707685;font-size:11px">지급 대기 중</span>';
+    if (s === 6) action = '<span style="color:#15803D;font-size:11px;font-weight:700">지급 완료 ✓</span>';
+    if (s === 7) action = '<span style="color:#15803D;font-size:11px;font-weight:700">판매 중</span>';
+
+    h += '<table class="mini"><tr><th>번호</th><th>제목</th><th>현황</th><th>검수제안</th><th>처리</th></tr>' +
+      '<tr><td>12</td><td style="font-weight:700">감정 날씨 일기 프로젝트</td>' +
+      '<td>' + statusPill + '</td>' +
+      '<td><button type="button" class="btn ghost static" style="border-color:#CBDDF7;color:#1D6FE0;font-size:11px;padding:4px 10px">내용 확인하기</button></td>' +
+      '<td>' + action + '</td></tr></table>';
+
+    if (s === 4) {
+      h += '<div class="card s-el hl-key2" style="margin-top:10px"><div style="font-weight:800;font-size:12.5px;margin-bottom:4px">지급 정보 입력</div>' +
+        '<div class="form-line"><label>주민등록번호</label><span class="fld"></span></div>' +
+        '<div class="form-line"><label>주소</label><span class="fld"></span></div>' +
+        '<div class="form-line"><label>입금될 계좌번호</label><span class="fld"></span></div>' +
+        '<div class="clicktip">「개인정보 입력」을 누르면 제출됩니다</div></div>';
+    }
+    if (s >= 5) {
+      h += '<div class="card s-el hl-key2" style="margin-top:10px;border-color:#D9E9D9"><div style="font-weight:800;font-size:12.5px;color:#15803D">지급 정보 제출 완료</div>' +
+        '<div style="font-size:11px;color:#707685;margin-top:2px">주민등록번호·주소·계좌번호가 안전하게 전달되었습니다' + (s >= 6 ? ' · 2026.07.05 지급 완료' : '') + '</div></div>';
+    }
+    return h;
+  }
+
+  /* ═══ REVIEWER screen ═══ */
+  function renderReviewer(s) {
+    var h = '<h2>콘텐츠 검수 페이지</h2><p class="sub">성함을 입력하시면 담당 콘텐츠와 검수 현황을 확인할 수 있습니다</p>';
+    h += '<div class="search"><input value="정하늘" readonly><button type="button" class="go" style="background:#6D5AE6">조회</button></div>';
+
+    if (s < 2) {
+      h += '<div class="empty">아직 배정된 콘텐츠가 없습니다</div>';
+      return h;
+    }
+
+    h += '<div class="stats"><div class="stat"><div class="n">1</div><div class="t">전체</div></div>' +
+      '<div class="stat"><div class="n">' + (s === 2 ? 1 : 0) + '</div><div class="t">검수 요청</div></div></div>';
+
+    h += '<div class="card s-el hl-key"><div class="row1"><span class="title" style="font-size:13px">감정 날씨 일기 프로젝트</span>' +
+      (s === 2 ? '<span class="pill orange">2차 검수</span>' : '<span class="pill green">심사 완료</span>') +
+      '</div><div class="meta"><b>박영수</b> · 서울초등학교 · 초등 저학년 · ₩5,000</div>' +
+      '<div class="links"><span class="lchip">스튜디오 ↗</span><span class="lchip">기획서(PPT) ↗</span><span class="lchip">운영 가이드 ↗</span></div>';
+
+    if (s === 2) {
+      h += '<div style="font-size:11px;color:#707685">검수 마감일 2026.07.01 · D-7</div>' +
+        '<div class="actrow">' + nextBtnHTML('2차 심사 진행', 'p-reviewer') + '</div>' +
+        '<div class="clicktip">채점표 작성 후 확인을 누르면 결과가 즉시 반영됩니다</div>';
+    } else {
+      h += '<div class="s-el hl-key2" style="margin-top:8px">' +
+        '<div class="score-line"><span>교육적 적합성</span><b>18 / 20</b></div>' +
+        '<div class="score-line"><span>안전성·윤리</span><b>16 / 20</b></div>' +
+        '<div class="score-line"><span>사용 편의성</span><b>20 / 20</b></div>' +
+        '<div class="score-line"><span>시장성</span><b>16 / 20</b></div>' +
+        '<div class="score-line"><span>콘텐츠 완성도</span><b>14 / 20</b></div>' +
+        '<div class="total"><span>총점</span><span class="val">84 / 100 · 통과</span></div></div>';
+    }
+    h += '</div>';
+    return h;
+  }
+
+  /* ═══ DB tables ═══ */
+  function kv(k, v, hl, badge) {
+    return '<div class="kv' + (hl ? ' hl-row' : '') + '"><span class="k">' + k + '</span><span class="v' + (badge ? ' badge-v' : '') + '">' + v + '</span></div>';
+  }
+  function renderDB(s, flashed) {
+    var justChanged = function (id) { return flashed.indexOf(id) >= 0; };
+
+    var c = kv('프로젝트_ID', 'CA-2026-010') + kv('콘텐츠명', '감정 날씨 일기 프로젝트') + kv('크리에이터', '박영수') +
+      kv('검수상태', STATUS[s], justChanged('dbContent'), true);
+    if (s >= 6) c += kv('지급일', '2026.07.05', s === 6 && justChanged('dbContent'));
+    if (s >= 7) c += kv('출시일', '2026.07.10', s === 7 && justChanged('dbContent'));
+    $('dbContentRows').innerHTML = c;
+
+    $('dbR1Rows').innerHTML = s >= 1
+      ? kv('검수일', '2026.06.16', justChanged('dbR1')) + kv('통과여부', 'yes', justChanged('dbR1')) + kv('검수내용', 'AI 점검 10항목 — 경미한 수정 제안 2건, 통과', justChanged('dbR1'))
+      : '<div class="none">아직 기록 없음</div>';
+
+    var r2 = '';
+    if (s >= 2) r2 += kv('검수자', '정하늘 교수', s === 2 && justChanged('dbR2')) + kv('배정일', '2026.06.17', s === 2 && justChanged('dbR2')) + kv('마감일', '2026.07.01', s === 2 && justChanged('dbR2'));
+    if (s >= 3) r2 += kv('검수일', '2026.06.24', s === 3 && justChanged('dbR2')) + kv('점수', '84 / 100', s === 3 && justChanged('dbR2')) + kv('통과여부', 'yes', s === 3 && justChanged('dbR2'));
+    $('dbR2Rows').innerHTML = r2 || '<div class="none">아직 기록 없음</div>';
+
+    $('dbFinRows').innerHTML = s >= 4
+      ? kv('승인자', '관리자', justChanged('dbFin')) + kv('검수일', '2026.07.02', justChanged('dbFin')) + kv('검수내용', '전 항목 기준 충족 — 최종 승인', justChanged('dbFin'))
+      : '<div class="none">아직 기록 없음</div>';
+
+    var cr = kv('크리에이터명', '박영수') + kv('소속', '서울초등학교');
+    if (s >= 5) cr += kv('주민등록번호', '900101-2******', s === 5 && justChanged('dbCr')) + kv('주소', '서울 마포구 ***', s === 5 && justChanged('dbCr')) + kv('계좌번호', '국민 123-45-*****', s === 5 && justChanged('dbCr'));
+    else cr += '<div class="kv"><span class="k">지급 정보</span><span class="v" style="color:var(--muted);font-weight:500">승인 후 입력받음</span></div>';
+    $('dbCrRows').innerHTML = cr;
+  }
+
+  /* ═══ timeline ═══ */
+  function renderTL() {
+    var h = '';
+    STEPS.forEach(function (st, i) {
+      var a = ACTORS[st.who];
+      h += '<div class="tl-step' + (i < cur ? ' done' : '') + (i === cur ? ' active' : '') + '" style="--ac:' + a.c + ';--ac-soft:' + a.s + '">' +
+        '<button type="button" role="tab" aria-selected="' + (i === cur) + '" data-goto="' + i + '">' +
+        '<span class="tl-node">' + (i + 1) + '</span>' +
+        '<span class="tl-lbl">' + st.short + '</span>' +
+        '<span class="tl-who" style="background:' + a.s + ';color:' + a.c + '">' + a.name + '</span>' +
+        '</button><span class="tl-bar"></span></div>';
+    });
+    $('tl').innerHTML = h;
+  }
+
+  /* ═══ main render ═══ */
+  function render(withFlash) {
+    var st = STEPS[cur];
+    var a = ACTORS[st.who];
+
+    renderTL();
+
+    var strip = $('actionStrip');
+    strip.style.setProperty('--ac', a.c);
+    strip.style.setProperty('--ac-soft', a.s);
+    $('aWho').textContent = a.name;
+    $('aWhat').textContent = st.what;
+    $('aHint').innerHTML = st.hint;
+
+    $('sAdmin').innerHTML = renderAdmin(cur);
+    $('sCreator').innerHTML = renderCreator(cur);
+    $('sReviewer').innerHTML = renderReviewer(cur);
+    renderDB(cur, withFlash ? st.flash : []);
+
+    $('stepCount').textContent = (cur + 1) + ' / ' + STEPS.length;
+    $('prevBtn').disabled = cur === 0;
+    $('nextBtn').disabled = cur === STEPS.length - 1;
+
+    ['fAdmin', 'fCreator', 'fReviewer', 'dbContent', 'dbR1', 'dbR2', 'dbFin', 'dbCr'].forEach(function (id) {
+      var el = $(id);
+      el.classList.remove('flash');
+      if (withFlash && st.flash.indexOf(id) >= 0) {
+        void el.offsetWidth; // restart animation
+        el.classList.add('flash');
+      }
+    });
+
+    if (withFlash) {
+      var flashScreens = st.flash.filter(function (id) { return id.charAt(0) === 'f'; });
+      flashScreens.forEach(function (id) {
+        var scr = $(id).querySelector('.screen');
+        scr.querySelectorAll('.hl-key, .hl-key2').forEach(function (n) { n.classList.add('hl'); });
+      });
+    }
+  }
+
+  function go(i, animate) {
+    cur = Math.max(0, Math.min(STEPS.length - 1, i));
+    render(animate);
+  }
+
+  $('prevBtn').addEventListener('click', function () { go(cur - 1, false); });
+  $('nextBtn').addEventListener('click', function () { go(cur + 1, true); });
+  $('replayBtn').addEventListener('click', function () { go(0, false); });
+
+  document.addEventListener('click', function (e) {
+    var adv = e.target.closest('[data-advance]');
+    if (adv) { go(cur + 1, true); return; }
+    var jump = e.target.closest('[data-goto]');
+    if (jump) { go(parseInt(jump.getAttribute('data-goto'), 10), false); }
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowRight') go(cur + 1, true);
+    if (e.key === 'ArrowLeft') go(cur - 1, false);
+  });
+
+  go(0, false);
+})();
+</script>
+
+</body>
+</html>

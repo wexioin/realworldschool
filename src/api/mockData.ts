@@ -4,8 +4,14 @@ import type {
   Content, RoadmapItem, Creator, Member, Order,
   Settlement, Booking, MonthRevenue, ActivityItem,
   ExperienceProgram, PlanProduct, KitProduct, Partner,
-  ContentAsset, BrandAsset, KnowledgePost,
+  ContentAsset, BrandAsset, KnowledgePost, Advisor, CreatorPayoutInfo,
+  ContentForm, DevStage, SaleStatus,
 } from './types';
+
+// ── 지식 자산에 저장되는 자문단 이메일 양식의 고정 ID ──
+// 2차 검증 배정/리마인드 모달이 이 글의 본문을 이메일 양식으로 불러옵니다.
+export const ADVISOR_ASSIGN_TEMPLATE_ID = 'kp007';
+export const ADVISOR_REMINDER_TEMPLATE_ID = 'kp008';
 
 export const contents: Content[] = [
   { id: 'c001', code: 'RWS-001', projectId: 'sU6RJR2-OncvMz9qRCZU9A', title: '윤익고등학교', description: '나와 다른 사람의 생각과 입장을 이해하고 공감하는 활동', ownerType: 'original_ug', company: '유니크굿컴퍼니', creator: '콘텐츠팀', grade: '초등 고학년', subject: '도덕', topic: '학교폭력 예방/인성', price: 3000, saleStatus: 'selling', devStage: 'released', views: 8900, purchases: 456, rating: 4.6, reviewCount: 89, tags: ['도덕', '초등', '인성교육'] },
@@ -23,6 +29,89 @@ export const contents: Content[] = [
   { id: 'c017', projectId: 'student_cr_001', code: 'CR-S-001', title: '우리 마을 역사 탐험대', description: '지역 역사를 직접 조사하고 디지털 스토리텔링으로 제작한 학생 작품', ownerType: 'creator_student', company: '서울고등학교', creator: '김민재 외 4명', grade: '고등학생', subject: '역사', topic: '역사 계기교육', price: 0, saleStatus: 'free', devStage: 'review_2', reviewStage: 'review_2', submittedDate: '2026-06-20', views: 0, purchases: 0, rating: 0, reviewCount: 0, tags: ['학생작품', '무료'] },
   { id: 'c018', projectId: 'institution_cr_001', code: 'CR-I-001', title: '생태 감수성 교육 패키지', description: '국립생태원과 협력하여 개발한 생태 교육 현장 체험 프로그램', ownerType: 'creator_institution', company: '국립생태원', creator: '국립생태원 교육팀', grade: '중학생', subject: '과학', topic: '기후행동/생태환경', price: 15000, saleStatus: 'preparing', devStage: 'final_approval', reviewStage: 'final_approval', submittedDate: '2026-05-10', views: 0, purchases: 0, rating: 0, reviewCount: 0, tags: ['생태', '기관연계'] },
   { id: 'c019', projectId: 'partners_cr_001', code: 'CR-P-001', title: 'AI 미래탐험대', description: 'AI 스타트업과 협력한 인공지능 개념 이해 및 체험 교육 콘텐츠', ownerType: 'creator_partners', company: '(주)에듀AI', creator: '에듀AI 콘텐츠팀', grade: '고등학생', subject: '정보', topic: '정보/디지털 리터러시', price: 20000, saleStatus: 'preparing', devStage: 'review_1', reviewStage: 'review_1', submittedDate: '2026-06-28', views: 0, purchases: 0, rating: 0, reviewCount: 0, tags: ['AI', '파트너스'] },
+];
+
+// ─────────────────────────────────────────────────────────────
+// 콘텐츠 자산 카탈로그 (콘텐츠마스터DB 기준 전체 목록)
+// 콘텐츠 자산 관리 페이지의 "콘텐츠 목록/개발/로드맵/카테고리·분석" 통합 데이터 소스.
+// contents(다른 페이지 공용)와 분리해 이 페이지에서만 사용합니다.
+// ─────────────────────────────────────────────────────────────
+const rws = (
+  n: number, title: string, topic: string, category: string, grade: string,
+  price: number, stage: DevStage, sale: SaleStatus, purchases: number, rating: number, progress?: number,
+): Content => ({
+  id: `cat${String(n).padStart(3, '0')}`,
+  code: n <= 41 ? `RWS-${String(n).padStart(3, '0')}` : `RWS-DEV-${String(n - 41).padStart(2, '0')}`,
+  title,
+  description: `${topic} · ${category}`,
+  ownerType: 'original_ug', company: '유니크굿컴퍼니', creator: '콘텐츠팀',
+  grade, subject: category.split('-')[1] ?? category, topic, category,
+  price, saleStatus: sale, devStage: stage,
+  views: purchases * 18, purchases, rating,
+  reviewCount: Math.round(purchases / 4),
+  progress,
+  tags: [topic],
+});
+
+export const contentCatalog: Content[] = [
+  rws(1,  '윤익고등학교', '학교폭력 예방/인성', '역량중심형-정서인성', '초등고학년', 3000, 'released', 'selling', 342, 4.7),
+  rws(2,  '울면 안 돼?', '학교폭력 예방/인성', '역량중심형-정서인성', '초등저학년', 3000, 'released', 'selling', 287, 4.8),
+  rws(3,  '바람을 버티고 싶어', '학교폭력 예방/인성', '역량중심형-정서인성', '전학년', 3000, 'released', 'selling', 198, 4.6),
+  rws(4,  '길에서 폰을 주웠다', '민주시민/인권', '역량중심형-정서인성', '전학년', 3000, 'released', 'selling', 156, 4.5),
+  rws(5,  'Recall:You', '역사 계기교육', '교과연계형-사회역사', '전학년', 1500, 'released', 'selling', 89, 4.4),
+  rws(6,  '암호학개론', '정보/디지털 리터러시', '교과연계형-수학', '전학년', 5000, 'released', 'selling', 521, 4.9),
+  rws(7,  '엄마는 키오스크를 잘하고 싶어서', '정보/디지털 리터러시', '교과연계형-정보디지털', '전학년', 1000, 'released', 'selling', 234, 4.6),
+  rws(8,  '윤익 바이오 연구소', '정보/디지털 리터러시', '교과연계형-과학', '전학년', 1500, 'released', 'selling', 167, 4.5),
+  rws(9,  '세자저하가 사라졌다!', '역사 계기교육', '교과연계형-사회역사', '전학년', 9000, 'released', 'selling', 298, 4.8),
+  rws(10, '트레저 넘버스', '정보/디지털 리터러시', '교과연계형-수학', '초등고학년', 20000, 'released', 'selling', 189, 4.7),
+  rws(11, '단어 보물찾기', '정보/디지털 리터러시', '교과연계형-국어', '전학년', 20000, 'released', 'selling', 145, 4.6),
+  rws(12, '히든 보스', '정보/디지털 리터러시', '교과연계형-정보디지털', '전학년', 25000, 'released', 'selling', 412, 4.8),
+  rws(13, '해킹 디펜스', '정보/디지털 리터러시', '교과연계형-정보디지털', '전학년', 25000, 'released', 'selling', 256, 4.7),
+  rws(14, '마스 이스케이프', '정보/디지털 리터러시', '교과연계형-과학', '전학년', 25000, 'released', 'selling', 387, 4.9),
+  rws(15, '캐치 더 워드', '정보/디지털 리터러시', '교과연계형-영어', '초등저학년,초등고학년', 20000, 'released', 'selling', 178, 4.5),
+  rws(16, '독립자금을 전달하라!', '역사 계기교육', '교과연계형-사회역사', '전학년', 9000, 'released', 'selling', 221, 4.8),
+  rws(17, '아빠, 어디갔어?!', '기후행동/생태환경', '역량중심형-생태환경', '전학년', 1500, 'released', 'selling', 134, 4.6),
+  rws(18, '오버 더 레인보우', '학교폭력 예방/인성', '역량중심형-정서인성', '중학생,고등학생', 1000, 'released', 'selling', 98, 4.5),
+  rws(19, '이 아이돌을 삭제하시겠습니까?', '학교폭력 예방/인성', '역량중심형-정서인성', '중학생,고등학생', 3000, 'released', 'selling', 187, 4.7),
+  rws(20, '빨강머리 앤', '학교폭력 예방/인성', '역량중심형-정서인성', '전학년', 1000, 'released', 'selling', 67, 4.4),
+  rws(21, 'COOK UP!', '정보/디지털 리터러시', '역량중심형-협력소통', '전학년', 1000, 'released', 'selling', 112, 4.5),
+  rws(22, '웰컴 투 티파티', '정보/디지털 리터러시', '교과연계형-영어', '초등저학년,초등고학년', 1000, 'released', 'selling', 89, 4.4),
+  rws(23, '프로젝트명 : 아르테미스', '정보/디지털 리터러시', '교과연계형-과학', '전학년', 1000, 'released', 'selling', 134, 4.6),
+  rws(24, 'SECRET CODE : AURA', '정보/디지털 리터러시', '교과연계형-수학', '전학년', 1000, 'released', 'selling', 98, 4.5),
+  rws(25, '엘레지의 눈물 도난사건', '정보/디지털 리터러시', '창의·예술', '전학년', 1000, 'released', 'selling', 87, 4.5),
+  rws(26, '호텔 발할라', '정보/디지털 리터러시', '창의·예술', '중학생,고등학생', 5000, 'released', 'selling', 176, 4.7),
+  rws(27, '폴라의 집', '기후행동/생태환경', '역량중심형-생태환경', '중학생,고등학생', 3000, 'released', 'selling', 123, 4.6),
+  rws(28, '굿바이, 스노우볼', '학교폭력 예방/인성', '역량중심형-정서인성', '초등저학년,초등고학년', 3000, 'released', 'selling', 78, 4.5),
+  rws(29, '프레지던트 메이커', '민주시민/인권', '교과연계형-사회역사', '초등저학년,초등고학년', 1000, 'released', 'selling', 56, 4.4),
+  rws(30, '팀플의 정석', '민주시민/인권', '역량중심형-협력소통', '중학생,고등학생', 1000, 'released', 'selling', 89, 4.5),
+  rws(31, '하트비트', '건강증진/감염병', '특수목적형-학급경영', '전학년', 1000, 'released', 'selling', 67, 4.4),
+  rws(32, '[4인용] 타임헬퍼', '정보/디지털 리터러시', '역량중심형-진로경제', '중학생,고등학생', 4500, 'released', 'selling', 134, 4.6),
+  rws(33, '삐뚤즈', '건강증진/감염병', '특수목적형-학급경영', '초등저학년,초등고학년', 3000, 'released', 'selling', 56, 4.4),
+  rws(34, '내 마니또를 찾아줘!', '학교폭력 예방/인성', '특수목적형-학급경영', '전학년', 3000, 'released', 'selling', 145, 4.6),
+  rws(35, '마녀의 할로윈', '다문화/세계시민', '교과연계형-세계시민', '초등저학년,초등고학년', 3000, 'released', 'selling', 89, 4.5),
+  rws(36, '달토끼 : 사라진 송편', '다문화/세계시민', '교과연계형-세계시민', '초등저학년,초등고학년', 1000, 'released', 'selling', 67, 4.4),
+  rws(37, '스리슬쩍 : 복 구슬 훔치기 대작전', '정보/디지털 리터러시', '특수목적형-학교행사', '초등저학년,초등고학년', 3000, 'released', 'selling', 78, 4.5),
+  rws(38, '마음 창고', '학교폭력 예방/인성', '역량중심형-정서인성', '전학년', 1000, 'released', 'selling', 92, 4.5),
+  rws(39, '방탈하기 좋은 날', '정보/디지털 리터러시', '교과연계형-수학', '전학년', 1500, 'released', 'selling', 145, 4.6),
+  rws(40, '오로라 레스토랑', '학교폭력 예방/인성', '역량중심형-정서인성', '전학년', 3000, 'released', 'selling', 98, 4.5),
+  rws(41, '어린왕자를 사랑한 장미', '학교폭력 예방/인성', '역량중심형-정서인성', '전학년', 3000, 'released', 'selling', 112, 4.7),
+  rws(42, 'AI와 함께하는 미래직업탐험', '정보/디지털 리터러시', '역량중심형-진로경제', '중학생,고등학생', 5000, 'developing', 'preparing', 0, 0, 45),
+  rws(43, '기후위기 탐정단', '기후행동/생태환경', '역량중심형-생태환경', '전학년', 3000, 'planning', 'preparing', 0, 0, 15),
+  rws(44, '수학왕 최후의 도전', '정보/디지털 리터러시', '교과연계형-수학', '중학생', 8000, 'review_1', 'preparing', 0, 0, 70),
+];
+
+// ── 서식·계약·MOU 문서 (콘텐츠 자산 관리 > 서식 탭) ──
+export const contentForms: ContentForm[] = [
+  { id: 'cf01', title: '콘텐츠 기획서 템플릿', description: '신규 콘텐츠 기획 시 필수 작성 서식 (30개 항목)', kind: 'template', updatedDate: '2026-06-01', fileType: 'DOCX' },
+  { id: 'cf02', title: '크리에이터 콘텐츠 제작 계약서', description: '외주 크리에이터와의 콘텐츠 제작 계약서 표준양식', kind: 'contract', updatedDate: '2026-05-12', fileType: 'DOCX' },
+  { id: 'cf03', title: '교사연구회 MOU 표준 계약서', description: '교사연구회와 체결하는 업무협약(MOU) 표준 양식', kind: 'mou', updatedDate: '2026-04-20', fileType: 'DOCX' },
+  { id: 'cf04', title: '출시 체크리스트 (35항목)', description: '콘텐츠 출시 전 필수 확인사항 35개 항목 리스트', kind: 'template', updatedDate: '2026-06-18', fileType: 'XLSX' },
+  { id: 'cf05', title: '교사 겸직신고서 작성 가이드', description: '공무원(교사) 겸직신고 절차 및 작성 가이드 (크리에이터 대상)', kind: 'guide', updatedDate: '2026-03-30', fileType: 'PDF' },
+  { id: 'cf06', title: '크리에이터 소득신고 안내자료', description: '프리랜서·크리에이터 종합소득세 신고 절차 및 서류 안내', kind: 'guide', updatedDate: '2026-05-02', fileType: 'PDF' },
+  { id: 'cf07', title: '학교 공문 요청 양식 (문서24 연동)', description: '학교 대상 공문 발송 시 활용하는 표준 공문 양식 (문서24 자동연동)', kind: 'gov', updatedDate: '2026-06-05', fileType: 'HWP' },
+  { id: 'cf08', title: '정산서 템플릿 (크리에이터)', description: '크리에이터 정산 내역서 표준 서식', kind: 'template', updatedDate: '2026-04-11', fileType: 'XLSX' },
+  { id: 'cf09', title: '비영리단체 협력 제안서', description: '비영리단체에 콘텐츠 협력을 제안하는 표준 제안서 양식', kind: 'contract', updatedDate: '2026-02-28', fileType: 'DOCX' },
+  { id: 'cf10', title: '콘텐츠 심사 평가표', description: '내부 심사 기준에 따른 콘텐츠 평가 양식 (교육적 적합성·완성도)', kind: 'template', updatedDate: '2026-06-22', fileType: 'XLSX' },
 ];
 
 // ── 콘텐츠 자산 (검수 파이프라인, 디지털 콘텐츠만) ──
@@ -100,13 +189,14 @@ export const contentAssets: ContentAsset[] = [
         { key: 'market', score: 10, feedback: '유사 무료 콘텐츠 다수. 차별점 보강 필요.' },
       ],
     },
+    revisionRequest: { requestedDate: '2026-06-14', deadline: '2026-07-05', reminderCount: 0 },
   },
   {
     id: 'ca007', code: 'CA-2026-006', title: '전래동화 스토리 게임',
     description: '전래동화를 재해석한 스토리텔링 미션 콘텐츠',
     creatorName: '한소영', creatorEmail: 'soyoung@story.edu', institution: '대전초등학교',
     submittedDate: '2026-05-28', grade: '초등 저학년', envType: 'indoor', groupType: 'solo',
-    category: 'C-02', price: 4000, status: 'approved',
+    category: 'C-02', price: 4000, status: 'payment_scheduled',
     studioProjectId: 'folktale_story_01', planPptUrl: 'https://drive.google.com/mock/plan-ppt-ca007', planDocUrl: 'https://drive.google.com/mock/plan-doc-ca007', guideUrl: 'https://drive.google.com/mock/guide-ca007',
     aiReview: { date: '2026-05-30', passed: true, issues: [] },
     humanReview: {
@@ -125,7 +215,7 @@ export const contentAssets: ContentAsset[] = [
     description: '역할극 기반 학교폭력 예방 교육 콘텐츠',
     creatorName: '오정민', creatorEmail: 'jmoh@school.edu', institution: '인천중학교',
     submittedDate: '2026-05-20', grade: '중학생', envType: 'indoor', groupType: 'team',
-    category: 'B-03', price: 6000, status: 'approved',
+    category: 'B-03', price: 6000, status: 'payment_scheduled',
     studioProjectId: 'anti_bullying_01', planPptUrl: 'https://drive.google.com/mock/plan-ppt-ca008', planDocUrl: 'https://drive.google.com/mock/plan-doc-ca008', guideUrl: 'https://drive.google.com/mock/guide-ca008',
     aiReview: { date: '2026-05-22', passed: true, issues: [] },
     humanReview: {
@@ -168,7 +258,58 @@ export const contentAssets: ContentAsset[] = [
     studioProjectId: 'civic_vote_01', planPptUrl: 'https://drive.google.com/mock/plan-ppt-ca010', planDocUrl: 'https://drive.google.com/mock/plan-doc-ca010', guideUrl: 'https://drive.google.com/mock/guide-ca010',
     mockAiIssues: [],
   },
+  {
+    id: 'ca011', code: 'CA-2026-014', title: '코딩 어드벤처: 로봇 도시',
+    description: '블록 코딩 기초를 스토리 미션으로 학습하는 초등 정보 콘텐츠',
+    creatorName: '김희율', creatorEmail: 'heeyul@edu.kr', institution: '대전중학교',
+    submittedDate: '2026-06-22', grade: '초등 고학년', envType: 'indoor', groupType: 'solo',
+    category: 'A-09', price: 8000, status: 'release_scheduled',
+    paymentCompletedDate: '2026-07-08',
+    studioProjectId: 'coding_robot_city', planPptUrl: 'https://drive.google.com/mock/plan-ppt-ca011',
+    aiReview: { date: '2026-06-25', passed: true, issues: [] },
+    humanReview: {
+      reviewer: '이검수', date: '2026-07-01', total: 87,
+      scores: [
+        { key: 'edu', score: 18, feedback: '정보 교육과정 연계 우수.' },
+        { key: 'quality', score: 17, feedback: '기획서 완성도 높음.' },
+        { key: 'safety', score: 19, feedback: '문제 없음.' },
+        { key: 'usability', score: 17, feedback: '교사 가이드 명확.' },
+        { key: 'market', score: 16, feedback: '코딩 교육 수요 높음.' },
+      ],
+    },
+  },
+  {
+    id: 'ca012', code: 'CA-2026-003', title: '나의 꿈 직업 탐험',
+    description: '진로 탐색을 게임화한 중학생 진로교육 콘텐츠',
+    creatorName: '이준혁', creatorEmail: 'junhyuk@edu.kr', institution: '서울초등학교',
+    submittedDate: '2026-04-15', grade: '중학생', envType: 'indoor', groupType: 'team',
+    category: 'B-09', price: 5500, status: 'released',
+    paymentCompletedDate: '2026-06-20',
+    releasedDate: '2026-07-01',
+    releasedUrl: 'https://school.realworld.to/content/ca-2026-003',
+    studioProjectId: 'career_explore_01',
+    aiReview: { date: '2026-04-20', passed: true, issues: [] },
+    humanReview: {
+      reviewer: '최선임', date: '2026-05-10', total: 90,
+      scores: [
+        { key: 'edu', score: 19, feedback: '진로교육 성취기준 연계.' },
+        { key: 'quality', score: 18, feedback: '완성도 높음.' },
+        { key: 'safety', score: 20, feedback: '문제 없음.' },
+        { key: 'usability', score: 17, feedback: '운영 용이.' },
+        { key: 'market', score: 16, feedback: '중학교 진로 수요 있음.' },
+      ],
+    },
+  },
 ];
+
+// ── 크리에이터 지급 정보 mock (지급 예정 단계 UI용) ──
+export const creatorPayoutByEmail: Record<string, CreatorPayoutInfo> = {
+  'soyoung@story.edu': { residentId: '900101-2******', address: '대전광역시 서구 둔산로 100, 101동 1204호', bankAccount: '국민은행 123-456-789012 (한소영)' },
+  'jmoh@school.edu': { residentId: '850315-1******', address: '인천광역시 남동구 구월로 55', bankAccount: '신한은행 110-334-556677 (오정민)' },
+  'heeyul@edu.kr': { residentId: '880722-2******', address: '대전광역시 유성구 대학로 99', bankAccount: '우리은행 1002-334-889900 (김희율)' },
+  'junhyuk@edu.kr': { residentId: '770908-1******', address: '서울특별시 종로구 율곡로 10', bankAccount: '카카오뱅크 3333-12-4567890 (이준혁)' },
+  'suji@eco.edu': { residentId: '920503-2******', address: '경기도 성남시 분당구 정자일로 20', bankAccount: '하나은행 620-910234-56707 (이수진)' },
+};
 
 // ── 브랜드 자산 ──
 export const brandAssets: BrandAsset[] = [
@@ -190,6 +331,69 @@ export const knowledgePosts: KnowledgePost[] = [
   { id: 'kp004', title: '홈페이지 FAQ 상위 10개 및 답변 링크', body: '최근 3개월 CS 인입 기준 상위 질문: 학생 접속 방법, 결제 영수증 발급, 학급 코드 재발급 등. FAQ 페이지 개편 시 이 순서를 반영해 주세요.', category: 'faq', author: '이CS', createdAt: '2026-06-10', likes: 7, likedByMe: false, bookmarkedByMe: false },
   { id: 'kp005', title: '교사 커뮤니티 홍보 채널 성과 정리 (상반기)', body: '인디스쿨·교사 인스타그램·블로그 체험단 3개 채널 중 인디스쿨 전환율이 가장 높았습니다. 하반기 예산 배분 참고용 데이터 포함.', category: 'marketing', author: '정마케팅', createdAt: '2026-07-02', likes: 11, likedByMe: true, bookmarkedByMe: false },
   { id: 'kp006', title: '개인정보 처리 방침 개정 이력 (학생 데이터)', body: '2026년 5월 개정: 학생 계정은 학급 단위 가명 처리로 전환. 학부모 동의서 양식 링크와 보관 기준을 정리했습니다.', category: 'ops', author: '최재무', createdAt: '2026-05-20', likes: 6, likedByMe: false, bookmarkedByMe: false },
+  {
+    id: 'kp007',
+    title: '[이메일 양식] 자문단 2차 검증 배정 안내',
+    body: `안녕하세요, {{자문위원명}} 위원님.
+
+리얼월드 스쿨 콘텐츠 2차 검증 자문위원으로 선정되어 안내드립니다.
+
+■ 검수 대상: {{콘텐츠명}} ({{콘텐츠코드}})
+■ 검수 마감일: {{마감일}}
+
+아래 링크에서 콘텐츠를 확인하시고 검수 의견을 등록해 주시기 바랍니다.
+▶ 검수 페이지: {{검수페이지링크}}
+
+교육 현장에 도움이 되는 콘텐츠가 될 수 있도록 위원님의 전문적인 검토를 부탁드립니다.
+감사합니다.
+
+리얼월드 스쿨 운영팀 드림`,
+    category: 'ops', author: '관리자', createdAt: '2026-07-01', likes: 4, likedByMe: false, bookmarkedByMe: true,
+  },
+  {
+    id: 'kp008',
+    title: '[이메일 양식] 자문단 2차 검증 마감 리마인드',
+    body: `안녕하세요, {{자문위원명}} 위원님.
+
+앞서 요청드린 콘텐츠 2차 검증의 마감일({{마감일}})이 지나 리마인드 안내드립니다.
+
+■ 검수 대상: {{콘텐츠명}} ({{콘텐츠코드}})
+
+아직 검수 의견을 등록하지 못하셨다면, 아래 링크에서 검토를 완료해 주시면 감사하겠습니다.
+▶ 검수 페이지: {{검수페이지링크}}
+
+바쁘신 점 양해 부탁드리며, 회신이 어려우신 경우 운영팀으로 알려주시기 바랍니다.
+감사합니다.
+
+리얼월드 스쿨 운영팀 드림`,
+    category: 'ops', author: '관리자', createdAt: '2026-07-01', likes: 2, likedByMe: false, bookmarkedByMe: false,
+  },
+  {
+    id: 'kp009',
+    title: '[이메일 양식] 크리에이터 수정 요청 리마인드',
+    body: `안녕하세요, {{크리에이터명}}님.
+
+「{{콘텐츠명}}」(코드: {{콘텐츠코드}}) 콘텐츠에 대한 수정 요청의 마감일({{마감일}})이 지나 리마인드 안내드립니다.
+
+아직 수정·재제출을 완료하지 못하셨다면, 스튜디오에서 수정 후 재제출해 주시기 바랍니다.
+
+문의 사항이 있으시면 운영팀으로 연락해 주세요.
+감사합니다.
+
+리얼월드 스쿨 운영팀 드림`,
+    category: 'ops', author: '관리자', createdAt: '2026-07-05', likes: 1, likedByMe: false, bookmarkedByMe: false,
+  },
+];
+
+// ── 자문단 (2차 검증 외부 자문위원) ──
+export const advisors: Advisor[] = [
+  { id: 'adv001', name: '정하늘 교수', email: 'ha.jung@snue.ac.kr', affiliation: '서울교육대학교 수학교육과', specialty: '초등 수학·창의사고', status: 'active' },
+  { id: 'adv002', name: '김도윤 교수', email: 'doyoon.kim@knue.ac.kr', affiliation: '한국교원대학교 과학교육과', specialty: '중등 과학·STEAM', status: 'active' },
+  { id: 'adv003', name: '이서현 연구위원', email: 'sh.lee@kice.re.kr', affiliation: '한국교육과정평가원', specialty: '교육과정 성취기준 연계', status: 'active' },
+  { id: 'adv004', name: '박준영 선생님', email: 'jy.park@moral.or.kr', affiliation: '전국도덕교육연구회', specialty: '인성·학교폭력 예방교육', status: 'active' },
+  { id: 'adv005', name: '최유진 박사', email: 'yj.choi@ecoedu.org', affiliation: '생태환경교육센터', specialty: '기후·생태 환경교육', status: 'active' },
+  { id: 'adv006', name: '한지호 교수', email: 'jiho.han@dgist.ac.kr', affiliation: 'DGIST 정보교육연구소', specialty: '정보·디지털 리터러시', status: 'active' },
+  { id: 'adv007', name: '송미라 선임연구원', email: 'mira.song@history.re.kr', affiliation: '역사교육연구소', specialty: '역사 계기교육', status: 'inactive' },
 ];
 
 export const roadmap: RoadmapItem[] = [

@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type {
   ErpApi, DashboardData, BadgeCounts, Content, Member, Creator, Partner,
   KitProduct, ExperienceProgram, PlanProduct, Settlement, SettlementStatus, BookingStatus,
-  ContentAsset, BrandAsset, KnowledgePost, CriterionScore,
+  ContentAsset, BrandAsset, KnowledgePost, CriterionScore, Advisor, AdvisorAssignment,
 } from './types';
 import * as mock from './mockData';
 
@@ -22,6 +22,18 @@ const won = (n: number) =>
   n >= 10_000 ? `₩${Math.round(n / 10_000).toLocaleString()}만` : `₩${n.toLocaleString()}`;
 
 const genId = (prefix: string) => `${prefix}_${Date.now().toString(36)}`;
+
+const revisionDeadline = () => {
+  const d = new Date();
+  d.setDate(d.getDate() + 14);
+  return d.toISOString().slice(0, 10);
+};
+
+const newRevisionRequest = () => ({
+  requestedDate: new Date().toISOString().slice(0, 10),
+  deadline: revisionDeadline(),
+  reminderCount: 0,
+});
 
 function upsert<T extends { id: string }>(list: T[], item: T, prefix: string): void {
   if (!item.id) {
@@ -90,24 +102,55 @@ class MockApi implements ErpApi {
     const passed = issues.length === 0;
     a.aiReview = { date: new Date().toISOString().slice(0, 10), passed, issues };
     a.status = passed ? 'human_review' : 'revision';
+    if (!passed) a.revisionRequest = newRevisionRequest();
     // 실연동 시: 실패하면 크리에이터 이메일로 이슈 자동 발송 (BFF에서 처리)
     return delay({ passed, issues }, 900); // AI 검수 소요 시간 시뮬레이션
   }
 
-  async submitReviewScores(id: string, reviewer: string, scores: CriterionScore[]) {
+  // ── 2차 검증 자문단 ──
+  listAdvisors() { return delay([...mock.advisors]); }
+
+  async assignAdvisor(id: string, assignment: AdvisorAssignment) {
+    const a = mock.contentAssets.find(x => x.id === id);
+    if (!a) throw new Error('asset not found');
+    // 실연동 시: 자문단 이메일로 배정 안내 메일 자동 발송 (BFF에서 처리)
+    a.advisorAssignment = assignment;
+    return delay(undefined, 600);
+  }
+
+  async sendAdvisorReminder(id: string, _emailSubject: string, _emailBody: string) {
+    const a = mock.contentAssets.find(x => x.id === id);
+    if (!a || !a.advisorAssignment) throw new Error('assignment not found');
+    // 실연동 시: 자문단 이메일로 리마인드 메일 자동 발송 (BFF에서 처리)
+    a.advisorAssignment = {
+      ...a.advisorAssignment,
+      reminderSentDate: new Date().toISOString().slice(0, 10),
+      reminderCount: (a.advisorAssignment.reminderCount ?? 0) + 1,
+    };
+    return delay(undefined, 600);
+  }
+
+  async submitReviewScores(id: string, reviewer: string, scores: CriterionScore[], deadline?: string) {
     const a = mock.contentAssets.find(x => x.id === id);
     if (!a) throw new Error('asset not found');
     const total = scores.reduce((sum, s) => sum + s.score, 0);
     const passed = total >= 80;
     a.humanReview = { reviewer, date: new Date().toISOString().slice(0, 10), total, scores };
     a.status = passed ? 'final_approval' : 'revision';
+    if (!passed) {
+      a.revisionRequest = {
+        requestedDate: new Date().toISOString().slice(0, 10),
+        deadline: deadline ?? revisionDeadline(),
+        reminderCount: 0,
+      };
+    }
     // 실연동 시: 점수·피드백을 크리에이터 이메일로 자동 발송
     return delay({ total, passed });
   }
 
   async finalApproveAsset(id: string) {
     const a = mock.contentAssets.find(x => x.id === id);
-    if (a) a.status = 'approved';
+    if (a) a.status = 'payment_scheduled';
     return delay(undefined);
   }
 
@@ -120,11 +163,52 @@ class MockApi implements ErpApi {
   async resubmitAsset(id: string) {
     const a = mock.contentAssets.find(x => x.id === id);
     if (a) {
-      // 재제출: 1차 검수부터 재시작, 이전 결과 초기화
       a.status = 'ai_review';
       a.aiReview = undefined;
       a.humanReview = undefined;
-      a.mockAiIssues = []; // 수정했다고 가정 → 다음 AI 검수는 통과
+      a.revisionRequest = undefined;
+      a.mockAiIssues = [];
+    }
+    return delay(undefined);
+  }
+
+  async completePayment(id: string) {
+    const a = mock.contentAssets.find(x => x.id === id);
+    if (a) {
+      a.status = 'release_scheduled';
+      a.paymentCompletedDate = new Date().toISOString().slice(0, 10);
+    }
+    return delay(undefined, 500);
+  }
+
+  async releaseContent(id: string, price: number) {
+    const a = mock.contentAssets.find(x => x.id === id);
+    if (a) {
+      a.status = 'released';
+      a.price = price;
+      a.releasedDate = new Date().toISOString().slice(0, 10);
+      a.releasedUrl = `https://school.realworld.to/content/${a.code.toLowerCase()}`;
+    }
+    return delay(undefined, 600);
+  }
+
+  async sendRevisionReminder(id: string, _emailSubject: string, _emailBody: string) {
+    const a = mock.contentAssets.find(x => x.id === id);
+    if (!a?.revisionRequest) throw new Error('revision not found');
+    a.revisionRequest = {
+      ...a.revisionRequest,
+      reminderSentDate: new Date().toISOString().slice(0, 10),
+      reminderCount: (a.revisionRequest.reminderCount ?? 0) + 1,
+    };
+    return delay(undefined, 600);
+  }
+
+  async markRevisionComplete(id: string) {
+    const a = mock.contentAssets.find(x => x.id === id);
+    if (a) {
+      a.status = 'ai_review';
+      a.revisionRequest = undefined;
+      a.mockAiIssues = [];
     }
     return delay(undefined);
   }
@@ -202,11 +286,14 @@ class MockApi implements ErpApi {
 
 export const api: ErpApi = new MockApi();
 
+export { creatorPayoutByEmail, contentCatalog, contentForms } from './mockData';
+
 // ── 조회 훅 ──
 export const useDashboard    = () => useQuery({ queryKey: ['dashboard'],    queryFn: () => api.getDashboard() });
 export const useBadgeCounts  = () => useQuery({ queryKey: ['badges'],       queryFn: () => api.getBadgeCounts() });
 export const useContents     = () => useQuery({ queryKey: ['contents'],     queryFn: () => api.listContents() });
 export const useContentAssets = () => useQuery({ queryKey: ['contentAssets'], queryFn: () => api.listContentAssets() });
+export const useAdvisors      = () => useQuery({ queryKey: ['advisors'],      queryFn: () => api.listAdvisors() });
 export const useBrandAssets   = () => useQuery({ queryKey: ['brandAssets'],   queryFn: () => api.listBrandAssets() });
 export const useKnowledgePosts = () => useQuery({ queryKey: ['knowledgePosts'], queryFn: () => api.listKnowledgePosts() });
 export const useRoadmap      = () => useQuery({ queryKey: ['roadmap'],      queryFn: () => api.listRoadmap() });
@@ -273,15 +360,31 @@ function useAssetMutation<TArgs, TResult>(fn: (args: TArgs) => Promise<TResult>)
 
 export const useSaveContentAsset = () => useInvalidatingMutation((a: ContentAsset) => api.saveContentAsset(a), ['contentAssets']);
 export const useRunAiReview = () => useAssetMutation((id: string) => api.runAiReview(id));
+export const useAssignAdvisor = () => useAssetMutation(
+  (args: { id: string; assignment: AdvisorAssignment }) => api.assignAdvisor(args.id, args.assignment)
+);
+export const useSendAdvisorReminder = () => useAssetMutation(
+  (args: { id: string; emailSubject: string; emailBody: string }) =>
+    api.sendAdvisorReminder(args.id, args.emailSubject, args.emailBody)
+);
 export const useSubmitReviewScores = () => useAssetMutation(
-  (args: { id: string; reviewer: string; scores: CriterionScore[] }) =>
-    api.submitReviewScores(args.id, args.reviewer, args.scores)
+  (args: { id: string; reviewer: string; scores: CriterionScore[]; revisionDeadline?: string }) =>
+    api.submitReviewScores(args.id, args.reviewer, args.scores, args.revisionDeadline)
 );
 export const useFinalApproveAsset = () => useAssetMutation((id: string) => api.finalApproveAsset(id));
 export const useRejectAsset = () => useAssetMutation(
   (args: { id: string; reason: string }) => api.rejectAsset(args.id, args.reason)
 );
 export const useResubmitAsset = () => useAssetMutation((id: string) => api.resubmitAsset(id));
+export const useCompletePayment = () => useAssetMutation((id: string) => api.completePayment(id));
+export const useReleaseContent = () => useAssetMutation(
+  (args: { id: string; price: number }) => api.releaseContent(args.id, args.price)
+);
+export const useSendRevisionReminder = () => useAssetMutation(
+  (args: { id: string; emailSubject: string; emailBody: string }) =>
+    api.sendRevisionReminder(args.id, args.emailSubject, args.emailBody)
+);
+export const useMarkRevisionComplete = () => useAssetMutation((id: string) => api.markRevisionComplete(id));
 
 // ── 브랜드 자산 변경 훅 ──
 export const useSaveBrandAsset   = () => useInvalidatingMutation((a: BrandAsset) => api.saveBrandAsset(a), ['brandAssets']);

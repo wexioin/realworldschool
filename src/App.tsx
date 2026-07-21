@@ -1,9 +1,15 @@
 import React, { Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, MemoryRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Layout } from './components/Layout';
 import { Loading } from './components/ui';
 import { ToastProvider } from './components/Toast';
+
+// 단일 HTML(파일 공유용) 빌드에서는 file:// 에서도 동작하도록 MemoryRouter를 쓰고,
+// 열자마자 콘텐츠 자산 페이지로 진입합니다. 일반 빌드는 기존 BrowserRouter 유지.
+const SINGLEFILE = import.meta.env.VITE_SINGLEFILE === '1';
+const Router = SINGLEFILE ? MemoryRouter : BrowserRouter;
+const routerProps = SINGLEFILE ? { initialEntries: ['/content-assets'] } : {};
  
 const Dashboard = React.lazy(() => import('./pages/Dashboard'));
 const ContentsPage = React.lazy(() => import('./pages/ContentsPage'));
@@ -27,7 +33,7 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ToastProvider>
-      <BrowserRouter>
+      <Router {...routerProps}>
         <Layout>
           <Suspense fallback={<Loading />}>
             <Routes>
@@ -48,7 +54,7 @@ export default function App() {
             </Routes>
           </Suspense>
         </Layout>
-      </BrowserRouter>
+      </Router>
       </ToastProvider>
     </QueryClientProvider>
   );

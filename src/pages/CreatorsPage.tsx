@@ -136,7 +136,7 @@ export default function CreatorsPage() {
                   extra={c.status === 'pending' ? (
                     <button
                       onClick={() => approve(c)}
-                      className="px-2 py-1 text-xs font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
+                      className="px-2 py-1 text-xs font-medium bg-emerald-100 border border-emerald-200 text-emerald-700 rounded-lg hover:bg-emerald-200/60"
                     >
                       승인
                     </button>

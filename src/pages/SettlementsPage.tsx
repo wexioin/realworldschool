@@ -106,7 +106,7 @@ export default function SettlementsPage() {
                   <button
                     disabled={update.isPending}
                     onClick={() => changeStatus(s.id, 'confirmed', `${s.targetName} ${s.period} 정산이 확정되었습니다.`)}
-                    className="px-2.5 py-1 text-xs font-medium bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50">
+                    className="px-2.5 py-1 text-xs font-medium bg-primary-100 border border-primary-200 text-primary-700 rounded-lg hover:bg-primary-200/60 disabled:opacity-50">
                     정산 확정
                   </button>
                 )}
@@ -114,7 +114,7 @@ export default function SettlementsPage() {
                   <button
                     disabled={update.isPending}
                     onClick={() => changeStatus(s.id, 'paid', `${s.targetName}에게 ${formatCurrency(s.netAmount)} 지급 처리되었습니다.`)}
-                    className="px-2.5 py-1 text-xs font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50">
+                    className="px-2.5 py-1 text-xs font-medium bg-emerald-100 border border-emerald-200 text-emerald-700 rounded-lg hover:bg-emerald-200/60 disabled:opacity-50">
                     지급 처리
                   </button>
                 )}

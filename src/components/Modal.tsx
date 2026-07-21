@@ -108,7 +108,7 @@ export function EntityFormModal<T extends Record<string, any>>({
             취소
           </button>
           <button type="submit" disabled={submitting}
-            className="px-4 py-2 text-sm font-medium bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50">
+            className="px-4 py-2 text-sm font-medium bg-primary-100 border border-primary-200 text-primary-700 rounded-lg hover:bg-primary-200/60 disabled:opacity-50">
             {submitting ? '저장 중...' : '저장'}
           </button>
         </div>

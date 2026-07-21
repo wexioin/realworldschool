@@ -205,7 +205,7 @@ function OverviewTab() {
     },
   ];
 
-  const pendingAssets = contentAssets.filter(a => a.status !== 'approved' && a.status !== 'rejected');
+  const pendingAssets = contentAssets.filter(a => a.status !== 'released' && a.status !== 'rejected');
 
   return (
     <div className="space-y-4">
