@@ -8,9 +8,13 @@ import { SessionProvider, useSessionMaybe, ROLE_HOME } from './session';
 
 // 단일 HTML(파일 공유용) 빌드에서는 file:// 에서도 동작하도록 MemoryRouter를 쓰고,
 // 열자마자 콘텐츠 자산 페이지로 진입합니다. 일반 빌드는 기존 BrowserRouter 유지.
+// GitHub Pages처럼 base가 /realworldschool/ 이면 BrowserRouter에도 같은 basename이 필요합니다.
 const SINGLEFILE = import.meta.env.VITE_SINGLEFILE === '1';
 const Router = SINGLEFILE ? MemoryRouter : BrowserRouter;
-const routerProps = SINGLEFILE ? { initialEntries: ['/content-assets'] } : {};
+const basename = (import.meta.env.BASE_URL || '/').replace(/\/$/, '') || undefined;
+const routerProps = SINGLEFILE
+  ? { initialEntries: ['/content-assets'] }
+  : { basename };
 
 const Dashboard = React.lazy(() => import('./pages/Dashboard'));
 const ContentsPage = React.lazy(() => import('./pages/ContentsPage'));
