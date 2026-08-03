@@ -17,8 +17,13 @@ import {
   useRoadmap,
   creatorPayoutByEmail, contentCatalog, contentForms,
 } from '../api';
-import type { ContentAsset, AssetStatus, CriterionScore, CriterionKey, AssetGrade, AssetEnvType, AssetGroupType, Creator, Advisor, AdvisorAssignment, KnowledgePost, CreatorPayoutInfo, Content, ContentForm, DevStage, SaleStatus } from '../api/types';
-import { REVIEW_CRITERIA, CRITERION_COMMENT_OPTIONS, CONTENT_CATEGORY_GROUPS, CORE_COMPETENCIES } from '../api/types';
+import type { ContentAsset, AssetStatus, CriterionScore, CriterionKey, AssetGrade, AssetEnvType, AssetGroupType, Creator, Advisor, AdvisorAssignment, RevisionRequest, KnowledgePost, CreatorPayoutInfo, Content, ContentForm, DevStage, SaleStatus } from '../api/types';
+import {
+  REVIEW_CRITERIA, CRITERION_COMMENT_OPTIONS, CONTENT_CATEGORY_GROUPS, CORE_COMPETENCIES,
+  ASSET_STATUS_META, IN_REVIEW_STATUSES, REVIEW_PASS_MARK,
+  ASSIGNMENT_DEADLINE_DAYS, REVISION_DEADLINE_DAYS,
+} from '../api/types';
+import { useSession } from '../session';
 import {
   PageHeader, StatusBadge, Card, SearchInput, Loading, AddButton,
   Table, EmptyRow, ProgressBar,
@@ -115,16 +120,7 @@ function fillRevisionTemplate(
     .replace(/\{\{마감일\}\}/g, vars.deadline ? formatDate(vars.deadline) : '(마감일 미정)');
 }
 
-const STATUS_META: Record<AssetStatus, { label: string; tone: 'green' | 'blue' | 'amber' | 'red' | 'gray' | 'violet' }> = {
-  ai_review: { label: '1차 검수 (AI)', tone: 'blue' },
-  human_review: { label: '2차 검수', tone: 'amber' },
-  final_approval: { label: '최종 승인 대기', tone: 'violet' },
-  revision: { label: '수정 요청', tone: 'red' },
-  payment_scheduled: { label: '지급 예정', tone: 'violet' },
-  release_scheduled: { label: '출시 예정', tone: 'blue' },
-  released: { label: '출시 완료', tone: 'green' },
-  rejected: { label: '반려', tone: 'gray' },
-};
+const STATUS_META = ASSET_STATUS_META;
 
 const GRADE_ORDER: AssetGrade[] = ['초등 저학년', '초등 고학년', '중학생', '고등학생', '전학년'];
 const ENV_LABEL: Record<AssetEnvType, string> = { indoor: '실내형', outdoor: '실외형', mixed: '혼합형' };
@@ -146,7 +142,7 @@ const EMPTY_ASSET: ContentAsset = {
   creatorName: '', creatorEmail: '', institution: '',
   submittedDate: new Date().toISOString().slice(0, 10),
   grade: '초등 고학년', envType: 'indoor', groupType: 'team',
-  category: ALL_CATEGORY_OPTIONS[0].value, price: 0, status: 'ai_review',
+  category: ALL_CATEGORY_OPTIONS[0].value, price: 0, status: 'first_review_pending',
   studioProjectId: '', planPptUrl: '', planDocUrl: '', guideUrl: '',
   mockAiIssues: [],
 };
@@ -934,22 +930,31 @@ function DocLink({ href, label, icon: Icon }: { href?: string; label: string; ic
 // 색상 원칙: 전 단계 보라 단일 계열, 선택된 단계만 딥퍼플 채움으로 구분
 const FLOW_STEPS: { value: string; label: string }[] = [
   { value: 'reviewing', label: '검토 중' },
-  { value: 'ai_review', label: '1차 검수(AI)' },
-  { value: 'human_review', label: '2차 검수' },
-  { value: 'final_approval', label: '최종 승인 대기' },
+  { value: 'first_review_pending', label: '1차 검수(AI)' },
+  { value: 'reviewer_assignment_pending', label: '검수자 배정' },
+  { value: 'second_review_pending', label: '2차 검수' },
   { value: 'revision', label: '수정 요청' },
-  { value: 'payment_scheduled', label: '지급 예정' },
-  { value: 'release_scheduled', label: '출시 예정' },
+  { value: 'final_approval_pending', label: '최종 승인 대기' },
+  { value: 'approved', label: '검수완료(통과)' },
+  { value: 'payment_pending', label: '지급 예정' },
+  { value: 'paid', label: '출시 예정' },
   { value: 'released', label: '출시 완료' },
   { value: 'rejected', label: '반려' },
 ];
 
+/** 1차·2차 수정 요청은 "수정 요청" 하나로 묶어 보여줍니다. */
+const REVISION_STATUSES: AssetStatus[] = ['first_revision_requested', 'second_revision_requested'];
+
+const matchesStep = (a: ContentAsset, step: string) =>
+  step === 'all' ? true :
+  step === 'reviewing' ? IN_REVIEW_STATUSES.includes(a.status) :
+  step === 'revision' ? REVISION_STATUSES.includes(a.status) :
+  a.status === step;
+
 function ReviewStatusFlow({ assets, current, onSelect }: {
   assets: ContentAsset[]; current: string; onSelect: (value: string) => void;
 }) {
-  const countBy = (s: AssetStatus) => assets.filter(a => a.status === s).length;
-  const count = (v: string) =>
-    v === 'reviewing' ? countBy('ai_review') + countBy('human_review') + countBy('final_approval') : countBy(v as AssetStatus);
+  const count = (v: string) => assets.filter(a => matchesStep(a, v)).length;
   return (
     <div className="flex items-stretch gap-1 overflow-x-auto pb-1">
       {FLOW_STEPS.map((step, i) => {
@@ -991,6 +996,7 @@ function PipelineTab() {
   const [query, setQuery] = useState(searchParams.get('q') ?? '');
   const toast = useToast();
 
+  const { user } = useSession();
   const { data: creators } = useCreators();
   const { data: advisors } = useAdvisors();
   const { data: knowledgePosts } = useKnowledgePosts();
@@ -1017,11 +1023,7 @@ function PipelineTab() {
   const filtered = useMemo(() => {
     if (!assets) return [];
     return assets.filter(a => {
-      const statusMatch =
-        status === 'all' ? true :
-        status === 'reviewing' ? ['ai_review', 'human_review', 'final_approval'].includes(a.status) :
-        a.status === status;
-      if (!statusMatch) return false;
+      if (!matchesStep(a, status)) return false;
       if (query && !`${a.title}${a.code}${a.creatorName}${a.institution ?? ''}`.toLowerCase().includes(query.toLowerCase())) return false;
       return true;
     });
@@ -1039,21 +1041,33 @@ function PipelineTab() {
   const handleAiReview = (a: ContentAsset) => {
     runAi.mutate(a.id, {
       onSuccess: (res) => {
-        if (res.passed) toast.success(`「${a.title}」 1차 검수 통과 — 2차 심사 대기로 전환되었습니다.`);
+        if (res.passed) toast.success(`「${a.title}」 1차 검수 통과 — 2차 검수자 배정 대기로 전환되었습니다.`);
         else toast.error(`「${a.title}」 1차 검수에서 ${res.issues.length}건의 문제가 발견되어 수정 요청되었습니다. (크리에이터 이메일 발송)`);
       },
     });
   };
 
   const handleFinalApprove = (a: ContentAsset) => {
-    if (!window.confirm(`「${a.title}」를 최종 승인할까요?\n승인 시 지급 예정 단계로 전환됩니다.`)) return;
-    finalApprove.mutate(a.id, { onSuccess: () => toast.success('최종 승인되었습니다. 지급 예정 목록으로 이동합니다.') });
+    const hasPayout = !!creatorPayoutByEmail[a.creatorEmail];
+    const nextLabel = hasPayout
+      ? '지급 정보가 등록되어 있어 바로 지급예정으로 넘어갑니다.'
+      : '지급 정보가 없어 검수완료(통과) 상태로 대기하며, 크리에이터에게 개인정보 입력을 요청합니다.';
+    if (!window.confirm(`「${a.title}」를 최종 승인할까요?\n${nextLabel}`)) return;
+    finalApprove.mutate({ id: a.id, admin: user.name }, {
+      onSuccess: (res) => toast.success(
+        res.status === 'payment_pending'
+          ? '최종 승인되었습니다. 지급 예정 목록으로 이동합니다.'
+          : '최종 승인되었습니다. 크리에이터 지급 정보 입력을 기다립니다.'
+      ),
+    });
   };
 
   const handleReject = (a: ContentAsset) => {
-    const reason = window.prompt(`「${a.title}」 반려 사유를 입력해 주세요.`);
+    const reason = window.prompt(`「${a.title}」 반려 사유를 입력해 주세요.\n입력한 내용은 크리에이터에게 그대로 전달됩니다.`);
     if (!reason) return;
-    reject.mutate({ id: a.id, reason }, { onSuccess: () => toast.error('반려 처리되었습니다. (크리에이터 이메일 발송)') });
+    reject.mutate({ id: a.id, admin: user.name, reason }, {
+      onSuccess: () => toast.error('반려 처리되었습니다. (크리에이터 이메일 발송)'),
+    });
   };
 
   return (
@@ -1107,7 +1121,7 @@ function PipelineTab() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  {a.status === 'ai_review' && (
+                  {a.status === 'first_review_pending' && (
                     <button
                       onClick={() => handleAiReview(a)}
                       disabled={runAi.isPending}
@@ -1116,31 +1130,46 @@ function PipelineTab() {
                       <Sparkles size={13} /> {runAi.isPending ? 'AI 검수 중...' : 'AI 1차 검수 실행'}
                     </button>
                   )}
-                  {a.status === 'human_review' && (
+                  {a.status === 'reviewer_assignment_pending' && (
+                    <button
+                      onClick={() => setSecondaryOf(a)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-primary-100 border border-primary-200 text-primary-700 rounded-lg hover:bg-primary-200/60 transition-colors"
+                    >
+                      <ShieldCheck size={13} /> 2차 검수자 배정
+                    </button>
+                  )}
+                  {a.status === 'second_review_pending' && (
                     <>
                       <button
                         onClick={() => setSecondaryOf(a)}
                         className={clsx(
                           'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors',
-                          a.advisorAssignment
-                            ? 'bg-white border-primary-200 text-primary-700 hover:bg-primary-50'
-                            : 'bg-primary-100 border-primary-200 text-primary-700 hover:bg-primary-200/60'
+                          a.advisorAssignment && isOverdue(a.advisorAssignment.deadline)
+                            ? 'bg-white border-red-200 text-red-600 hover:bg-red-50'
+                            : 'bg-white border-primary-200 text-primary-700 hover:bg-primary-50'
                         )}
                       >
                         <ShieldCheck size={13} />
-                        {a.advisorAssignment
-                          ? (isOverdue(a.advisorAssignment.deadline) ? '2차 검증 · 마감 경과' : '2차 검증 현황')
-                          : '2차 검증'}
+                        {a.advisorAssignment && isOverdue(a.advisorAssignment.deadline) ? '검수 현황 · 마감 경과' : '검수 현황'}
                       </button>
+                      {/* 검수자가 직접 채점하는 것이 원칙이며, 여기서는 운영팀 대리 입력용입니다. */}
                       <button
                         onClick={() => setScoring(a)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-white border border-gray-200 text-gray-500 rounded-lg hover:bg-gray-50 transition-colors"
                       >
-                        <BookOpenCheck size={13} /> 2차 심사 진행
+                        <BookOpenCheck size={13} /> 대리 채점
                       </button>
                     </>
                   )}
-                  {a.status === 'final_approval' && (
+                  {a.status === 'approved' && (
+                    <button
+                      onClick={() => setPaymentOf(a)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-amber-100 border border-amber-200 text-amber-700 rounded-lg hover:bg-amber-200/60 transition-colors"
+                    >
+                      <CreditCard size={13} /> 지급 정보 현황
+                    </button>
+                  )}
+                  {a.status === 'final_approval_pending' && (
                     <>
                       <button
                         onClick={() => handleFinalApprove(a)}
@@ -1156,7 +1185,7 @@ function PipelineTab() {
                       </button>
                     </>
                   )}
-                  {a.status === 'revision' && (
+                  {REVISION_STATUSES.includes(a.status) && (
                     <>
                       <button
                         onClick={() => setRevisionOf(a)}
@@ -1174,7 +1203,7 @@ function PipelineTab() {
                       </button>
                     </>
                   )}
-                  {a.status === 'payment_scheduled' && (
+                  {a.status === 'payment_pending' && (
                     <button
                       onClick={() => setPaymentOf(a)}
                       className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-primary-100 border border-primary-200 text-primary-700 rounded-lg hover:bg-primary-200/60 transition-colors"
@@ -1182,7 +1211,7 @@ function PipelineTab() {
                       <Wallet size={13} /> 지급 처리
                     </button>
                   )}
-                  {a.status === 'release_scheduled' && (
+                  {a.status === 'paid' && (
                     <button
                       onClick={() => setReleaseOf(a)}
                       className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-emerald-100 border border-emerald-200 text-emerald-700 rounded-lg hover:bg-emerald-200/60 transition-colors"
@@ -1229,17 +1258,19 @@ function PipelineTab() {
               )}
 
               {/* 검수 이력 */}
-              {(a.aiReview || a.advisorAssignment || a.humanReview || a.revisionRequest || a.rejectedReason) && (
+              {(a.aiReview || a.advisorAssignment || a.humanReview || a.revisionRequest || a.rejection || a.finalReview) && (
                 <div className="pt-3 border-t border-gray-100 space-y-2">
                   {a.advisorAssignment && (
                     <div className="text-xs text-gray-600">
                       <span className="font-medium inline-flex items-center gap-1">
-                        <ShieldCheck size={12} className="text-primary-500" /> 2차 검증 자문단
+                        <ShieldCheck size={12} className="text-primary-500" /> 2차 검수자
                       </span>{' '}
                       <span className="text-gray-700 font-semibold">{a.advisorAssignment.advisorName}</span>
                       <span className="text-gray-400"> · 배정 {formatDate(a.advisorAssignment.assignedDate)}</span>
                       <span className="text-gray-400"> · 마감 {formatDate(a.advisorAssignment.deadline)}</span>
-                      {isOverdue(a.advisorAssignment.deadline) ? (
+                      {a.status !== 'second_review_pending' ? (
+                        <span className="ml-1.5 inline-flex items-center gap-1 text-gray-500 font-semibold"><CheckCircle2 size={11} /> 검수 완료</span>
+                      ) : isOverdue(a.advisorAssignment.deadline) ? (
                         <span className="ml-1.5 inline-flex items-center gap-1 text-red-600 font-semibold"><AlertTriangle size={11} /> 마감 경과</span>
                       ) : (
                         <span className="ml-1.5 inline-flex items-center gap-1 text-emerald-600 font-semibold"><Clock size={11} /> 검수 진행 중</span>
@@ -1278,24 +1309,39 @@ function PipelineTab() {
                   )}
                   {a.humanReview && (
                     <div className="text-xs text-gray-600">
-                      <span className="font-medium">2차 심사 ({a.humanReview.reviewer}, {formatDate(a.humanReview.date)})</span>{' '}
-                      <span className={clsx('font-semibold', a.humanReview.total >= 80 ? 'text-emerald-600' : 'text-red-600')}>
-                        {a.humanReview.total}점 / 100점 {a.humanReview.total >= 80 ? '(통과)' : '(미달)'}
+                      <span className="font-medium">2차 검수 ({a.humanReview.reviewer}, {formatDate(a.humanReview.date)})</span>{' '}
+                      <span className={clsx('font-semibold', a.humanReview.total >= REVIEW_PASS_MARK ? 'text-emerald-600' : 'text-red-600')}>
+                        {a.humanReview.total}점 / 100점 {a.humanReview.total >= REVIEW_PASS_MARK ? '(통과)' : '(미달)'}
                       </span>
                       <div className="mt-1.5 grid grid-cols-1 sm:grid-cols-2 gap-1">
                         {a.humanReview.scores.map(s => {
                           const c = REVIEW_CRITERIA.find(c => c.key === s.key)!;
                           return (
                             <p key={s.key} className="text-gray-500">
-                              <span className="text-gray-700 font-medium">{c.label}</span> {s.score}/20 — {s.feedback}
+                              <span className="text-gray-700 font-medium">{c.label}</span> {s.score}/{c.max} — {s.feedback}
                             </p>
                           );
                         })}
                       </div>
+                      {a.humanReview.note && (
+                        <p className="mt-1.5 text-gray-600 bg-gray-50 border border-gray-100 rounded-lg px-2.5 py-2">
+                          <span className="font-medium text-gray-700">검수 의견</span> {a.humanReview.note}
+                        </p>
+                      )}
                     </div>
                   )}
-                  {a.rejectedReason && (
-                    <p className="text-xs text-red-600 font-medium">반려 사유: {a.rejectedReason}</p>
+                  {a.finalReview && (
+                    <p className="text-xs text-gray-600">
+                      <span className="font-medium">최종 승인</span>{' '}
+                      <span className="text-gray-400">{a.finalReview.admin} · {formatDate(a.finalReview.date)}</span>
+                      {a.finalReview.note && <span className="text-gray-500"> — {a.finalReview.note}</span>}
+                    </p>
+                  )}
+                  {a.rejection && (
+                    <p className="text-xs text-red-600 font-medium">
+                      반려 사유: {a.rejection.reason}
+                      <span className="text-gray-400 font-normal"> ({a.rejection.admin} · {formatDate(a.rejection.date)})</span>
+                    </p>
                   )}
                 </div>
               )}
@@ -1309,12 +1355,13 @@ function PipelineTab() {
           asset={scoring}
           submitting={submitScores.isPending}
           onClose={() => setScoring(null)}
-          onSubmit={(reviewer, scores, revisionDeadline) => {
-            submitScores.mutate({ id: scoring.id, reviewer, scores, revisionDeadline }, {
+          defaultReviewer={scoring.advisorAssignment?.advisorName}
+          onSubmit={(reviewer, scores, note) => {
+            submitScores.mutate({ id: scoring.id, reviewer, scores, note }, {
               onSuccess: (res) => {
                 setScoring(null);
-                if (res.passed) toast.success(`총점 ${res.total}점 — 심사 통과, 최종 승인 대기로 전환되었습니다.`);
-                else toast.error(`총점 ${res.total}점 — 80점 미달로 수정 요청되었습니다. (크리에이터 이메일 발송)`);
+                if (res.passed) toast.success(`총점 ${res.total}점 — 검수 통과, 최종 승인 대기로 전환되었습니다.`);
+                else toast.error(`총점 ${res.total}점 — ${REVIEW_PASS_MARK}점 미달로 수정 요청되었습니다. (크리에이터 이메일 발송)`);
               },
             });
           }}
@@ -1438,15 +1485,18 @@ function PipelineTab() {
   );
 }
 
-// ── 2차 심사 채점 모달 ──
-function ReviewScoreModal({ asset, submitting, onClose, onSubmit }: {
+// ── 2차 검수 루브릭 채점 모달 (관리자 대리 채점 / 검수자 화면 공용) ──
+export function ReviewScoreModal({ asset, submitting, defaultReviewer, lockReviewer, onClose, onSubmit }: {
   asset: ContentAsset; submitting?: boolean;
+  /** 검수자 화면에서는 로그인한 검수자 이름으로 고정합니다. */
+  defaultReviewer?: string;
+  lockReviewer?: boolean;
   onClose: () => void;
-  onSubmit: (reviewer: string, scores: CriterionScore[], revisionDeadline?: string) => void;
+  onSubmit: (reviewer: string, scores: CriterionScore[], note: string) => void;
 }) {
-  const [reviewer, setReviewer] = useState('');
+  const [reviewer, setReviewer] = useState(defaultReviewer ?? '');
   const [selections, setSelections] = useState<Partial<Record<CriterionKey, string>>>({});
-  const [revisionDeadline, setRevisionDeadline] = useState(addDaysISO(14));
+  const [note, setNote] = useState('');
 
   const scores: CriterionScore[] = REVIEW_CRITERIA.map(c => {
     const commentId = selections[c.key];
@@ -1463,22 +1513,26 @@ function ReviewScoreModal({ asset, submitting, onClose, onSubmit }: {
 
   const total = scores.reduce((a, s) => a + s.score, 0);
   const allSelected = REVIEW_CRITERIA.every(c => !!selections[c.key]);
-  const needsRevision = allSelected && total < 80;
+  const passed = total >= REVIEW_PASS_MARK;
 
   const selectComment = (key: CriterionKey, commentId: string) => {
     setSelections(prev => ({ ...prev, [key]: commentId }));
   };
 
   return (
-    <Modal title={`2차 심사 — ${asset.title}`} onClose={onClose} wide>
+    <Modal title={`2차 검수 — ${asset.title}`} onClose={onClose} wide>
       <div className="space-y-4">
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">심사위원 이름</label>
+          <label className="block text-xs font-medium text-gray-600 mb-1">검수자 이름</label>
           <input
             value={reviewer}
             onChange={e => setReviewer(e.target.value)}
-            placeholder="예: 김검수"
-            className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:border-primary-400"
+            readOnly={lockReviewer}
+            placeholder="예: 박준영 선생님"
+            className={clsx(
+              'w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-primary-400',
+              lockReviewer ? 'bg-gray-50 text-gray-500' : 'bg-white'
+            )}
           />
         </div>
 
@@ -1491,11 +1545,12 @@ function ReviewScoreModal({ asset, submitting, onClose, onSubmit }: {
                   <p className="text-sm font-medium text-gray-900">
                     {c.label} <span className="text-xs text-gray-400 font-normal">({c.desc})</span>
                   </p>
-                  {selectedId && (
-                    <span className="text-xs font-semibold text-primary-700 bg-primary-50 px-2 py-0.5 rounded">
-                      {scores.find(s => s.key === c.key)!.score}점
-                    </span>
-                  )}
+                  <span className={clsx(
+                    'text-xs font-semibold px-2 py-0.5 rounded',
+                    selectedId ? 'text-primary-700 bg-primary-50' : 'text-gray-400 bg-gray-50'
+                  )}>
+                    {selectedId ? `${scores.find(s => s.key === c.key)!.score} / ${c.max}점` : `배점 ${c.max}점`}
+                  </span>
                 </div>
                 <div className="space-y-1.5">
                   {CRITERION_COMMENT_OPTIONS[c.key].map(opt => (
@@ -1530,42 +1585,49 @@ function ReviewScoreModal({ asset, submitting, onClose, onSubmit }: {
           })}
         </div>
 
-        {needsRevision && (
-          <div className="border border-amber-200 bg-amber-50/50 rounded-lg p-3">
-            <label className="block text-xs font-medium text-amber-800 mb-1.5">
-              수정 마감일 <span className="text-amber-600 font-normal">(80점 미달 — 크리에이터 수정 요청)</span>
-            </label>
-            <input
-              type="date"
-              value={revisionDeadline}
-              min={todayISO()}
-              onChange={e => setRevisionDeadline(e.target.value)}
-              className="w-full px-3 py-2 text-sm bg-white border border-amber-200 rounded-lg focus:outline-none focus:border-amber-400"
-            />
-          </div>
-        )}
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">
+            검수 의견 <span className="text-gray-400 font-normal">— 이 내용은 크리에이터에게 그대로 전달됩니다.</span>
+          </label>
+          <textarea
+            value={note}
+            onChange={e => setNote(e.target.value)}
+            rows={4}
+            placeholder="보완이 필요한 부분과 개선 방향을 구체적으로 적어주세요."
+            className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:border-primary-400 resize-y"
+          />
+        </div>
+
+        <p className="text-xs text-gray-500 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2">
+          {REVIEW_PASS_MARK}점 이상이면 최종 승인 대기로, 미만이면 크리에이터에게 수정 요청(마감 1주)이 나갑니다.
+        </p>
 
         <div className="flex items-center justify-between pt-3 border-t border-gray-100">
           <p className="text-sm">
             총점{' '}
-            <span className={clsx('font-bold text-lg ml-1', allSelected && total >= 80 ? 'text-emerald-600' : allSelected ? 'text-red-600' : 'text-gray-400')}>
+            <span className={clsx('font-bold text-lg ml-1', !allSelected ? 'text-gray-400' : passed ? 'text-emerald-600' : 'text-red-600')}>
               {allSelected ? total : '—'}
             </span>
-            <span className="text-gray-400"> / 100 · 80점 이상 통과</span>
+            <span className="text-gray-400"> / 100</span>
+            {allSelected && (
+              <span className={clsx('ml-2 font-semibold', passed ? 'text-emerald-600' : 'text-red-600')}>
+                {passed ? '통과' : `통과까지 ${REVIEW_PASS_MARK - total}점`}
+              </span>
+            )}
           </p>
           <div className="flex items-center gap-2">
             <button onClick={onClose} className="px-4 py-2 text-sm font-medium bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50">취소</button>
             <button
               onClick={() => {
-                if (!reviewer.trim()) { alert('심사위원 이름을 입력해 주세요.'); return; }
-                if (!allSelected) { alert('5개 검수 카테고리 모두 평가 코멘트를 선택해 주세요.'); return; }
-                if (needsRevision && !revisionDeadline) { alert('수정 마감일을 지정해 주세요.'); return; }
-                onSubmit(reviewer, scores, needsRevision ? revisionDeadline : undefined);
+                if (!reviewer.trim()) { alert('검수자 이름을 입력해 주세요.'); return; }
+                if (!allSelected) { alert('5개 루브릭 항목 모두 평가를 선택해 주세요.'); return; }
+                if (!note.trim()) { alert('검수 의견을 입력해 주세요.'); return; }
+                onSubmit(reviewer, scores, note.trim());
               }}
               disabled={submitting}
               className="px-4 py-2 text-sm font-medium bg-primary-100 border border-primary-200 text-primary-700 rounded-lg hover:bg-primary-200/60 disabled:opacity-50"
             >
-              {submitting ? '처리 중...' : '확인'}
+              {submitting ? '처리 중...' : '검수 결과 제출'}
             </button>
           </div>
         </div>
@@ -1621,9 +1683,23 @@ function AssignView({ asset, advisors, assignTemplate, assigning, onAssign, onCl
   onAssign: (assignment: AdvisorAssignment) => void;
   onClose: () => void;
 }) {
-  const activeAdvisors = advisors.filter(a => a.status === 'active');
+  const { data: allAssets } = useContentAssets();
   const [advisorId, setAdvisorId] = useState('');
-  const [deadline, setDeadline] = useState(addDaysISO(14));
+  const [deadline, setDeadline] = useState(addDaysISO(ASSIGNMENT_DEADLINE_DAYS));
+
+  // 담당 카테고리가 겹치는 검수자를, 진행 중인 배정이 적은 순서로 먼저 보여줍니다.
+  const assetGroup = asset.category.charAt(0);
+  const activeAdvisors = useMemo(() => {
+    const load = (advisorId: string) => (allAssets ?? []).filter(
+      x => x.status === 'second_review_pending' && x.advisorAssignment?.advisorId === advisorId
+    ).length;
+    return advisors
+      .filter(a => a.status === 'active')
+      .map(a => ({ ...a, load: load(a.id), recommended: a.categories.includes(assetGroup) }))
+      .sort((x, y) =>
+        Number(y.recommended) - Number(x.recommended) || x.load - y.load || x.name.localeCompare(y.name)
+      );
+  }, [advisors, allAssets, assetGroup]);
   const [subject, setSubject] = useState(`[리얼월드 스쿨] 「${asset.title}」 콘텐츠 2차 검증 요청`);
   const [body, setBody] = useState('');
 
@@ -1638,7 +1714,7 @@ function AssignView({ asset, advisors, assignTemplate, assigning, onAssign, onCl
   }, [advisorId, deadline, templateBody, advisor?.name, asset.title, asset.code]);
 
   const handleAssign = () => {
-    if (!advisor) { alert('배정할 자문단을 선택해 주세요.'); return; }
+    if (!advisor) { alert('배정할 검수자를 선택해 주세요.'); return; }
     if (!deadline) { alert('검수 마감일을 입력해 주세요.'); return; }
     onAssign({
       advisorId: advisor.id,
@@ -1656,12 +1732,15 @@ function AssignView({ asset, advisors, assignTemplate, assigning, onAssign, onCl
     <div className="space-y-5">
       {/* 자문단 선택 */}
       <div>
-        <p className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1.5">
-          <Users size={13} className="text-primary-500" /> 검증 자문단 선택
+        <p className="text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1.5">
+          <Users size={13} className="text-primary-500" /> 2차 검수자 선택
+        </p>
+        <p className="text-[11px] text-gray-400 mb-2">
+          {CATEGORY_GROUPS.find(g => g.key === assetGroup)?.name ?? assetGroup} 담당 검수자 중 진행 중인 배정이 적은 순서로 추천했습니다.
         </p>
         {activeAdvisors.length === 0 ? (
           <p className="text-xs text-gray-400 bg-gray-50 border border-gray-100 rounded-lg px-3 py-6 text-center">
-            배정 가능한 자문단이 없습니다.
+            배정 가능한 검수자가 없습니다.
           </p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-0.5">
@@ -1677,12 +1756,20 @@ function AssignView({ asset, advisors, assignTemplate, assigning, onAssign, onCl
                   )}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-gray-900">{adv.name}</p>
+                    <p className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
+                      {adv.name}
+                      {adv.recommended && (
+                        <span className="text-[10px] font-medium text-primary-700 bg-primary-100 px-1.5 py-0.5 rounded">추천</span>
+                      )}
+                    </p>
                     {sel && <CheckCircle2 size={15} className="text-primary-600 flex-shrink-0" />}
                   </div>
                   <p className="text-[11px] text-gray-500 mt-0.5 truncate">{adv.affiliation}</p>
                   <p className="text-[11px] text-primary-600 mt-0.5 truncate">{adv.specialty}</p>
-                  <p className="text-[11px] text-gray-400 mt-1 flex items-center gap-1 truncate"><Mail size={10} /> {adv.email}</p>
+                  <p className="text-[11px] text-gray-400 mt-1 flex items-center gap-1 truncate">
+                    <Mail size={10} /> {adv.email}
+                    <span className="ml-auto flex-shrink-0">진행중 {adv.load}건</span>
+                  </p>
                 </button>
               );
             })}
@@ -1702,6 +1789,7 @@ function AssignView({ asset, advisors, assignTemplate, assigning, onAssign, onCl
           onChange={e => setDeadline(e.target.value)}
           className="w-full sm:w-56 px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:border-primary-400"
         />
+        <p className="text-[11px] text-gray-400 mt-1">마감일은 배정일 기준 2주가 기본값입니다.</p>
       </div>
 
       {/* 이메일 미리보기 */}
@@ -1736,7 +1824,7 @@ function AssignView({ asset, advisors, assignTemplate, assigning, onAssign, onCl
           disabled={assigning || !advisor}
           className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-primary-100 border border-primary-200 text-primary-700 rounded-lg hover:bg-primary-200/60 disabled:opacity-50"
         >
-          <Send size={14} /> {assigning ? '발송 중...' : '자문단 배정 · 이메일 발송'}
+          <Send size={14} /> {assigning ? '발송 중...' : '배정하고 안내 메일 발송'}
         </button>
       </div>
     </div>
@@ -1987,9 +2075,10 @@ function RevisionStatusModal({ asset, reminderTemplate, reminding, completing, o
   onReminder: (emailSubject: string, emailBody: string) => void;
   onMarkComplete: () => void;
 }) {
-  const rev = asset.revisionRequest ?? {
+  const rev: RevisionRequest = asset.revisionRequest ?? {
     requestedDate: asset.humanReview?.date ?? asset.aiReview?.date ?? todayISO(),
-    deadline: addDaysISO(14),
+    deadline: addDaysISO(REVISION_DEADLINE_DAYS),
+    stage: asset.status === 'first_revision_requested' ? 'first' : 'second',
   };
   const overdue = isOverdue(rev.deadline);
   const daysLeft = Math.round((new Date(rev.deadline).getTime() - new Date(todayISO()).getTime()) / 86_400_000);
@@ -2123,10 +2212,9 @@ const DIM_LABEL: Record<DimKey, string> = {
 // 상태 4분류 (검토중 = 1차·2차·최종 대기 통합)
 type StatusGroup = 'reviewing' | 'revision' | 'released' | 'rejected';
 const statusGroupOf = (a: ContentAsset): StatusGroup =>
-  a.status === 'revision' ? 'revision'
-  : a.status === 'released' ? 'released'
+  REVISION_STATUSES.includes(a.status) ? 'revision'
   : a.status === 'rejected' ? 'rejected'
-  : ['payment_scheduled', 'release_scheduled'].includes(a.status) ? 'released'
+  : (['released', 'paid', 'payment_pending', 'approved'] as AssetStatus[]).includes(a.status) ? 'released'
   : 'reviewing';
 
 const STATUS_GROUP_META: Record<StatusGroup, { label: string; color: string }> = {

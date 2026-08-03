@@ -4,13 +4,17 @@ import { clsx } from 'clsx';
 import {
   LayoutDashboard, BookOpen, UserSquare2, Users, ShoppingCart,
   DollarSign, FlaskConical, BarChart3, Settings, GraduationCap, Handshake,
-  ClipboardCheck, Palette, Lightbulb,
+  ClipboardCheck, Palette, Lightbulb, ClipboardList, FolderKanban,
 } from 'lucide-react';
 import { useBadgeCounts } from '../api';
+import { useSession, ROLE_LABEL } from '../session';
+import { RoleSwitcher } from './RoleSwitcher';
+import type { UserRole } from '../api/types';
 
 // ─────────────────────────────────────────────────────────────
 // v2 정보 구조: 31개 라우트 → 9개 메뉴.
 // 배지는 하드코딩이 아니라 API(useBadgeCounts)에서 파생됩니다.
+// 사이드바 구성은 역할에 따라 완전히 달라집니다.
 // ─────────────────────────────────────────────────────────────
 
 const PAGE_TITLES: Record<string, string> = {
@@ -27,16 +31,21 @@ const PAGE_TITLES: Record<string, string> = {
   '/experience': '체험 운영',
   '/analytics': '분석',
   '/settings': '설정',
+  '/review/assignments': '배정된 검수',
+  '/my/contents': '내 콘텐츠 검수 현황',
 };
 
-export function Layout({ children }: { children: React.ReactNode }) {
-  const { data: badges } = useBadgeCounts();
-  const location = useLocation();
+type NavGroup = { group?: string; items: { to: string; icon: React.ElementType; label: string; badge?: number }[] };
 
-  const nav: { group?: string; items: { to: string; icon: React.ElementType; label: string; badge?: number }[] }[] = [
-    {
-      items: [{ to: '/', icon: LayoutDashboard, label: '대시보드' }],
-    },
+function buildNav(role: UserRole, badges?: { contentsReview: number; settlementsPending: number; bookingsPending: number }): NavGroup[] {
+  if (role === 'reviewer') {
+    return [{ items: [{ to: '/review/assignments', icon: ClipboardList, label: '배정된 검수' }] }];
+  }
+  if (role === 'creator') {
+    return [{ items: [{ to: '/my/contents', icon: FolderKanban, label: '내 콘텐츠' }] }];
+  }
+  return [
+    { items: [{ to: '/', icon: LayoutDashboard, label: '대시보드' }] },
     {
       group: '서비스',
       items: [
@@ -70,6 +79,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
       ],
     },
   ];
+}
+
+export function Layout({ children }: { children: React.ReactNode }) {
+  const { data: badges } = useBadgeCounts();
+  const location = useLocation();
+  const { user } = useSession();
+
+  const nav = buildNav(user.role, badges);
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -81,7 +98,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
           <div>
             <p className="text-sm font-bold text-gray-900 leading-tight">리얼월드 스쿨</p>
-            <p className="text-[11px] text-gray-400 leading-tight">통합 관리자</p>
+            <p className="text-[11px] text-gray-400 leading-tight">
+              {user.role === 'admin' ? '통합 관리자' : `${ROLE_LABEL[user.role]} 페이지`}
+            </p>
           </div>
         </div>
 
@@ -118,8 +137,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
 
-        <div className="px-4 py-3 border-t border-gray-100">
-          <p className="text-[11px] text-gray-400">v2.0 · mock 데이터</p>
+        <div className="px-3 py-3 border-t border-gray-100 space-y-2">
+          <RoleSwitcher />
+          <p className="px-1 text-[11px] text-gray-400">v2.0 · mock 데이터</p>
         </div>
       </aside>
 
@@ -130,9 +150,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
             {PAGE_TITLES[location.pathname] ?? '리얼월드 스쿨 ERP'}
           </p>
           <div className="flex items-center gap-3">
-            <span className="text-xs text-gray-400">plusu0617@gmail.com</span>
+            <div className="text-right leading-tight">
+              <p className="text-xs font-medium text-gray-700">{user.name}</p>
+              <p className="text-[11px] text-gray-400">{ROLE_LABEL[user.role]} · {user.email}</p>
+            </div>
             <div className="w-7 h-7 rounded-full bg-primary-100 text-primary-700 text-xs font-bold flex items-center justify-center">
-              관
+              {user.name.charAt(0)}
             </div>
           </div>
         </header>

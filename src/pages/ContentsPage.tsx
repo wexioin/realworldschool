@@ -13,6 +13,7 @@ import {
 import type {
   Content, SaleStatus, ExperienceProgram, PlanProduct, KitProduct, Order, OrderChannel,
 } from '../api/types';
+import { ASSET_STATUS_META } from '../api/types';
 import {
   PageHeader, FilterChips, StatusBadge, StatCard, Table, EmptyRow, Loading,
   ProgressBar, Card, SearchInput, AddButton,
@@ -265,10 +266,7 @@ function OverviewTab() {
                   <p className="text-sm font-medium text-gray-900 group-hover:text-primary-700">{a.title}</p>
                   <p className="text-xs text-gray-400">{a.creatorName} · 제출 {formatDate(a.submittedDate)}</p>
                 </div>
-                <StatusBadge
-                  label={({ ai_review: '1차 검수(AI)', human_review: '2차 검수', final_approval: '최종 승인 대기', revision: '수정 요청' } as Record<string, string>)[a.status] ?? a.status}
-                  tone={a.status === 'revision' ? 'red' : a.status === 'final_approval' ? 'violet' : 'amber'}
-                />
+                <StatusBadge label={ASSET_STATUS_META[a.status].label} tone={ASSET_STATUS_META[a.status].tone} />
               </Link>
             ))}
           </div>

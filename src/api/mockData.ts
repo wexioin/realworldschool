@@ -5,7 +5,7 @@ import type {
   Settlement, Booking, MonthRevenue, ActivityItem,
   ExperienceProgram, PlanProduct, KitProduct, Partner,
   ContentAsset, BrandAsset, KnowledgePost, Advisor, CreatorPayoutInfo,
-  ContentForm, DevStage, SaleStatus,
+  ContentForm, DevStage, SaleStatus, UserAccount,
 } from './types';
 
 // ── 지식 자산에 저장되는 자문단 이메일 양식의 고정 ID ──
@@ -121,7 +121,7 @@ export const contentAssets: ContentAsset[] = [
     description: '규칙 추론과 패턴 해독을 게임화한 중학 수학 미션형 콘텐츠',
     creatorName: '최민서', creatorEmail: 'minseo@busan.edu', institution: '부산중학교',
     submittedDate: '2026-07-01', grade: '중학생', envType: 'indoor', groupType: 'solo',
-    category: 'A-03', price: 5000, status: 'ai_review',
+    category: 'A-03', price: 5000, status: 'first_review_pending',
     studioProjectId: 'math_puzzle_master_01', planPptUrl: 'https://drive.google.com/mock/plan-ppt-ca001', planDocUrl: 'https://drive.google.com/mock/plan-doc-ca001', guideUrl: 'https://drive.google.com/mock/guide-ca001',
     mockAiIssues: [],
   },
@@ -130,7 +130,7 @@ export const contentAssets: ContentAsset[] = [
     description: 'AI 개념 이해와 윤리적 활용을 다루는 고등 정보 콘텐츠',
     creatorName: '에듀AI 콘텐츠팀', creatorEmail: 'content@eduai.kr', institution: '(주)에듀AI',
     submittedDate: '2026-06-28', grade: '고등학생', envType: 'indoor', groupType: 'team',
-    category: 'A-09', price: 20000, status: 'ai_review',
+    category: 'A-09', price: 20000, status: 'first_review_pending',
     studioProjectId: 'partners_cr_001', planPptUrl: 'https://drive.google.com/mock/plan-ppt-ca002', planDocUrl: 'https://drive.google.com/mock/plan-doc-ca002', guideUrl: 'https://drive.google.com/mock/guide-ca002',
     mockAiIssues: ['미션 3-2에서 정답 입력 후 다음 단계로 진행되지 않음 (분기 오류)', '이미지 자산 2개 로딩 실패 (경로 오류)'],
   },
@@ -139,16 +139,23 @@ export const contentAssets: ContentAsset[] = [
     description: '매일의 감정을 날씨로 표현하고 공유하는 정서 교육 프로그램',
     creatorName: '박영수', creatorEmail: 'park@edu.kr', institution: '서울초등학교',
     submittedDate: '2026-06-15', grade: '초등 저학년', envType: 'indoor', groupType: 'solo',
-    category: 'B-01', price: 5000, status: 'human_review',
+    category: 'B-01', price: 5000, status: 'second_review_pending',
     studioProjectId: 'teacher_cr_004', planPptUrl: 'https://drive.google.com/mock/plan-ppt-ca003', planDocUrl: 'https://drive.google.com/mock/plan-doc-ca003', guideUrl: 'https://drive.google.com/mock/guide-ca003',
     aiReview: { date: '2026-06-18', passed: true, issues: [] },
+    advisorAssignment: {
+      advisorId: 'adv004', advisorName: '박준영 선생님', advisorEmail: 'jy.park@moral.or.kr',
+      assignedDate: '2026-07-16', deadline: '2026-07-30',
+      emailSubject: '[리얼월드스쿨] 2차 검수 요청 — 감정 날씨 일기 프로젝트',
+      emailBody: '박준영 선생님, 아래 콘텐츠의 2차 검수를 요청드립니다.',
+      reminderCount: 0,
+    },
   },
   {
     id: 'ca004', code: 'CA-2026-009', title: '우리 마을 역사 탐험대',
     description: '지역 역사를 조사하고 디지털 스토리텔링으로 제작한 학생 작품',
     creatorName: '김민재 외 4명', creatorEmail: 'minji.k@seoulhs.kr', institution: '서울고등학교',
     submittedDate: '2026-06-20', grade: '고등학생', envType: 'mixed', groupType: 'team',
-    category: 'A-05', price: 0, status: 'human_review',
+    category: 'A-05', price: 0, status: 'reviewer_assignment_pending',
     studioProjectId: 'student_cr_001', planPptUrl: 'https://drive.google.com/mock/plan-ppt-ca004', planDocUrl: 'https://drive.google.com/mock/plan-doc-ca004', guideUrl: 'https://drive.google.com/mock/guide-ca004',
     aiReview: { date: '2026-06-23', passed: true, issues: [] },
   },
@@ -157,17 +164,25 @@ export const contentAssets: ContentAsset[] = [
     description: '국립생태원 협력 생태 교육 콘텐츠 (실외 관찰 활동 연계)',
     creatorName: '국립생태원 교육팀', creatorEmail: 'edu@nie.re.kr', institution: '국립생태원',
     submittedDate: '2026-05-10', grade: '중학생', envType: 'outdoor', groupType: 'class',
-    category: 'B-08', price: 15000, status: 'final_approval',
+    category: 'B-08', price: 15000, status: 'final_approval_pending',
     studioProjectId: 'institution_cr_001', planPptUrl: 'https://drive.google.com/mock/plan-ppt-ca005', planDocUrl: 'https://drive.google.com/mock/plan-doc-ca005', guideUrl: 'https://drive.google.com/mock/guide-ca005',
     aiReview: { date: '2026-05-15', passed: true, issues: [] },
+    advisorAssignment: {
+      advisorId: 'adv005', advisorName: '최유진 박사', advisorEmail: 'yj.choi@ecoedu.org',
+      assignedDate: '2026-05-16', deadline: '2026-05-30',
+      emailSubject: '[리얼월드스쿨] 2차 검수 요청 — 생태 감수성 교육 패키지',
+      emailBody: '최유진 박사님, 아래 콘텐츠의 2차 검수를 요청드립니다.',
+      reminderCount: 0,
+    },
     humanReview: {
-      reviewer: '이검수', date: '2026-05-22', total: 88,
+      reviewer: '최유진 박사', date: '2026-05-22', total: 88, passed: true,
+      note: '전문기관 자료를 잘 활용한 완성도 높은 콘텐츠입니다. 실외 활동 준비물 목록만 가이드 앞부분으로 옮겨주시면 현장 적용이 더 수월하겠습니다.',
       scores: [
-        { key: 'edu', score: 19, feedback: '2022 개정 교육과정 성취기준과 정확히 연계됨.' },
-        { key: 'quality', score: 18, feedback: '기획서·가이드 모두 완성도 높음. 사진 자료 보강 권장.' },
-        { key: 'safety', score: 20, feedback: '전문기관 자료 활용, 저작권·개인정보 문제 없음.' },
-        { key: 'usability', score: 16, feedback: '실외 활동 준비물 목록을 가이드 앞부분으로 이동 권장.' },
-        { key: 'market', score: 15, feedback: '단가 대비 활동 시간이 길어 학교 수요 검증 필요.' },
+        { key: 'edu', score: 22, feedback: '2022 개정 교육과정 성취기준과 정확히 연계됨.' },
+        { key: 'quality', score: 22, feedback: '기획서·가이드 모두 완성도 높음. 사진 자료 보강 권장.' },
+        { key: 'safety', score: 18, feedback: '전문기관 자료 활용, 저작권·개인정보 문제 없음.' },
+        { key: 'usability', score: 13, feedback: '실외 활동 준비물 목록을 가이드 앞부분으로 이동 권장.' },
+        { key: 'market', score: 13, feedback: '단가 대비 활동 시간이 길어 학교 수요 검증 필요.' },
       ],
     },
   },
@@ -176,58 +191,70 @@ export const contentAssets: ContentAsset[] = [
     description: '학급 단위 환경 실천 캠페인 운영 콘텐츠',
     creatorName: '이수진', creatorEmail: 'suji@eco.edu',
     submittedDate: '2026-06-10', grade: '전학년', envType: 'mixed', groupType: 'class',
-    category: 'B-08', price: 3000, status: 'revision',
+    category: 'B-08', price: 3000, status: 'second_revision_requested',
     studioProjectId: 'eco_campaign_01', planPptUrl: 'https://drive.google.com/mock/plan-ppt-ca006', planDocUrl: 'https://drive.google.com/mock/plan-doc-ca006', guideUrl: 'https://drive.google.com/mock/guide-ca006',
     aiReview: { date: '2026-06-12', passed: true, issues: [] },
+    advisorAssignment: {
+      advisorId: 'adv005', advisorName: '최유진 박사', advisorEmail: 'yj.choi@ecoedu.org',
+      assignedDate: '2026-06-13', deadline: '2026-06-27',
+      emailSubject: '[리얼월드스쿨] 2차 검수 요청 — 환경 지킴이 캠페인',
+      emailBody: '최유진 박사님, 아래 콘텐츠의 2차 검수를 요청드립니다.',
+      reminderCount: 0,
+    },
     humanReview: {
-      reviewer: '김검수', date: '2026-06-14', total: 62,
+      reviewer: '최유진 박사', date: '2026-06-14', total: 62, passed: false,
+      note: '성취기준 연계를 기획서에 명시하고, 차시별 운영 흐름표를 가이드에 추가해 주세요. 준비물도 학급에서 바로 구할 수 있는 수준으로 간소화가 필요합니다.',
       scores: [
-        { key: 'edu', score: 10, feedback: '교육과정 성취기준 연계가 명시되지 않음.' },
-        { key: 'quality', score: 12, feedback: '가이드 문서에 차시별 운영 흐름 없음.' },
-        { key: 'safety', score: 18, feedback: '문제 없음.' },
-        { key: 'usability', score: 12, feedback: '교사 사전 준비 부담이 큼. 준비물 간소화 필요.' },
-        { key: 'market', score: 10, feedback: '유사 무료 콘텐츠 다수. 차별점 보강 필요.' },
+        { key: 'edu', score: 15, feedback: '교육과정 성취기준 연계가 명시되지 않음.' },
+        { key: 'quality', score: 15, feedback: '가이드 문서에 차시별 운영 흐름 없음.' },
+        { key: 'safety', score: 16, feedback: '문제 없음.' },
+        { key: 'usability', score: 9, feedback: '교사 사전 준비 부담이 큼. 준비물 간소화 필요.' },
+        { key: 'market', score: 7, feedback: '유사 무료 콘텐츠 다수. 차별점 보강 필요.' },
       ],
     },
-    revisionRequest: { requestedDate: '2026-06-14', deadline: '2026-07-05', reminderCount: 0 },
+    revisionRequest: { requestedDate: '2026-06-14', deadline: '2026-06-21', stage: 'second', reminderCount: 0 },
   },
   {
     id: 'ca007', code: 'CA-2026-006', title: '전래동화 스토리 게임',
     description: '전래동화를 재해석한 스토리텔링 미션 콘텐츠',
     creatorName: '한소영', creatorEmail: 'soyoung@story.edu', institution: '대전초등학교',
     submittedDate: '2026-05-28', grade: '초등 저학년', envType: 'indoor', groupType: 'solo',
-    category: 'C-02', price: 4000, status: 'payment_scheduled',
+    category: 'C-02', price: 4000, status: 'payment_pending',
     studioProjectId: 'folktale_story_01', planPptUrl: 'https://drive.google.com/mock/plan-ppt-ca007', planDocUrl: 'https://drive.google.com/mock/plan-doc-ca007', guideUrl: 'https://drive.google.com/mock/guide-ca007',
     aiReview: { date: '2026-05-30', passed: true, issues: [] },
     humanReview: {
-      reviewer: '최선임', date: '2026-06-05', total: 91,
+      reviewer: '정하늘 교수', date: '2026-06-05', total: 91, passed: true,
+      note: '국어과 문학 영역 연계가 우수하고 운영 흐름도 명확합니다. 그대로 출시해도 좋겠습니다.',
       scores: [
-        { key: 'edu', score: 18, feedback: '국어과 문학 영역 연계 우수.' },
-        { key: 'quality', score: 19, feedback: '기획·가이드 완성도 높음.' },
-        { key: 'safety', score: 20, feedback: '문제 없음.' },
-        { key: 'usability', score: 18, feedback: '운영 흐름 명확.' },
-        { key: 'market', score: 16, feedback: '저학년 담임 수요 예상.' },
+        { key: 'edu', score: 23, feedback: '국어과 문학 영역 연계 우수.' },
+        { key: 'quality', score: 23, feedback: '기획·가이드 완성도 높음.' },
+        { key: 'safety', score: 19, feedback: '문제 없음.' },
+        { key: 'usability', score: 13, feedback: '운영 흐름 명확.' },
+        { key: 'market', score: 13, feedback: '저학년 담임 수요 예상.' },
       ],
     },
+    finalReview: { admin: '관리자', date: '2026-06-08', note: '루브릭 91점, 지급 정보 완비 확인.' },
   },
   {
     id: 'ca008', code: 'CA-2026-005', title: '학교폭력 예방 시나리오 게임',
     description: '역할극 기반 학교폭력 예방 교육 콘텐츠',
     creatorName: '오정민', creatorEmail: 'jmoh@school.edu', institution: '인천중학교',
     submittedDate: '2026-05-20', grade: '중학생', envType: 'indoor', groupType: 'team',
-    category: 'B-03', price: 6000, status: 'payment_scheduled',
+    category: 'B-03', price: 6000, status: 'approved',
     studioProjectId: 'anti_bullying_01', planPptUrl: 'https://drive.google.com/mock/plan-ppt-ca008', planDocUrl: 'https://drive.google.com/mock/plan-doc-ca008', guideUrl: 'https://drive.google.com/mock/guide-ca008',
     aiReview: { date: '2026-05-22', passed: true, issues: [] },
     humanReview: {
-      reviewer: '이검수', date: '2026-05-27', total: 85,
+      reviewer: '박준영 선생님', date: '2026-05-27', total: 85, passed: true,
+      note: '민감 주제를 안전하게 다루었고 도덕과 연계도 적절합니다.',
       scores: [
-        { key: 'edu', score: 17, feedback: '도덕과 연계 적절.' },
-        { key: 'quality', score: 17, feedback: '시나리오 완성도 양호.' },
-        { key: 'safety', score: 19, feedback: '민감 주제 처리 적절.' },
-        { key: 'usability', score: 17, feedback: '운영 용이.' },
-        { key: 'market', score: 15, feedback: '학폭예방 의무교육 수요 있음.' },
+        { key: 'edu', score: 21, feedback: '도덕과 연계 적절.' },
+        { key: 'quality', score: 21, feedback: '시나리오 완성도 양호.' },
+        { key: 'safety', score: 18, feedback: '민감 주제 처리 적절.' },
+        { key: 'usability', score: 13, feedback: '운영 용이.' },
+        { key: 'market', score: 12, feedback: '학폭예방 의무교육 수요 있음.' },
       ],
     },
+    finalReview: { admin: '관리자', date: '2026-06-01', note: '승인 완료. 크리에이터 지급 정보 입력 대기 중.' },
   },
   {
     id: 'ca009', code: 'CA-2026-004', title: '급식실 미스터리',
@@ -235,17 +262,21 @@ export const contentAssets: ContentAsset[] = [
     creatorName: '장우혁', creatorEmail: 'whjang@teach.kr', institution: '광주초등학교',
     submittedDate: '2026-05-02', grade: '초등 고학년', envType: 'mixed', groupType: 'team',
     category: 'D-01', price: 5000, status: 'rejected',
-    rejectedReason: '학교 안전 규정과 충돌하는 동선 설계(급식실 조리 구역 진입). 안전성 기준 미달로 반려.',
+    rejection: {
+      admin: '관리자', date: '2026-05-12',
+      reason: '학교 안전 규정과 충돌하는 동선 설계(급식실 조리 구역 진입). 안전성 기준 미달로 반려합니다.',
+    },
     studioProjectId: 'cafeteria_mystery_01', planPptUrl: 'https://drive.google.com/mock/plan-ppt-ca009', planDocUrl: 'https://drive.google.com/mock/plan-doc-ca009', guideUrl: 'https://drive.google.com/mock/guide-ca009',
     aiReview: { date: '2026-05-04', passed: true, issues: [] },
     humanReview: {
-      reviewer: '김검수', date: '2026-05-09', total: 58,
+      reviewer: '이서현 연구위원', date: '2026-05-09', total: 58, passed: false,
+      note: '조리 구역 진입 동선은 학교 안전 규정상 허용되지 않습니다. 동선 전면 재설계가 필요합니다.',
       scores: [
-        { key: 'edu', score: 12, feedback: '교육 목표 불명확.' },
-        { key: 'quality', score: 13, feedback: '가이드 미완성.' },
+        { key: 'edu', score: 15, feedback: '교육 목표 불명확.' },
+        { key: 'quality', score: 15, feedback: '가이드 미완성.' },
         { key: 'safety', score: 8, feedback: '조리 구역 진입 동선 — 안전 규정 위반.' },
-        { key: 'usability', score: 13, feedback: '공간 섭외 부담 큼.' },
-        { key: 'market', score: 12, feedback: '—' },
+        { key: 'usability', score: 10, feedback: '공간 섭외 부담 큼.' },
+        { key: 'market', score: 10, feedback: '—' },
       ],
     },
   },
@@ -254,29 +285,35 @@ export const contentAssets: ContentAsset[] = [
     description: '학급 자치 활동과 연계한 민주주의 이해 콘텐츠',
     creatorName: '서지혜', creatorEmail: 'jhseo@civic.edu', institution: '서울중학교',
     submittedDate: '2026-07-03', grade: '중학생', envType: 'indoor', groupType: 'class',
-    category: 'B-09', price: 4500, status: 'ai_review',
+    category: 'B-09', price: 4500, status: 'first_revision_requested',
     studioProjectId: 'civic_vote_01', planPptUrl: 'https://drive.google.com/mock/plan-ppt-ca010', planDocUrl: 'https://drive.google.com/mock/plan-doc-ca010', guideUrl: 'https://drive.google.com/mock/guide-ca010',
-    mockAiIssues: [],
+    aiReview: {
+      date: '2026-07-05', passed: false,
+      issues: ['개표 결과 화면에서 득표수 합계가 총 투표수와 일치하지 않음', '학생 이름 입력란에 개인정보 수집 동의 안내가 없음'],
+    },
+    revisionRequest: { requestedDate: '2026-07-05', deadline: '2026-07-12', stage: 'first', reminderCount: 0 },
   },
   {
     id: 'ca011', code: 'CA-2026-014', title: '코딩 어드벤처: 로봇 도시',
     description: '블록 코딩 기초를 스토리 미션으로 학습하는 초등 정보 콘텐츠',
     creatorName: '김희율', creatorEmail: 'heeyul@edu.kr', institution: '대전중학교',
     submittedDate: '2026-06-22', grade: '초등 고학년', envType: 'indoor', groupType: 'solo',
-    category: 'A-09', price: 8000, status: 'release_scheduled',
+    category: 'A-09', price: 8000, status: 'paid',
     paymentCompletedDate: '2026-07-08',
     studioProjectId: 'coding_robot_city', planPptUrl: 'https://drive.google.com/mock/plan-ppt-ca011',
     aiReview: { date: '2026-06-25', passed: true, issues: [] },
     humanReview: {
-      reviewer: '이검수', date: '2026-07-01', total: 87,
+      reviewer: '한지호 교수', date: '2026-07-01', total: 87, passed: true,
+      note: '정보 교육과정 연계가 우수하고 교사 가이드도 명확합니다.',
       scores: [
-        { key: 'edu', score: 18, feedback: '정보 교육과정 연계 우수.' },
-        { key: 'quality', score: 17, feedback: '기획서 완성도 높음.' },
-        { key: 'safety', score: 19, feedback: '문제 없음.' },
-        { key: 'usability', score: 17, feedback: '교사 가이드 명확.' },
-        { key: 'market', score: 16, feedback: '코딩 교육 수요 높음.' },
+        { key: 'edu', score: 22, feedback: '정보 교육과정 연계 우수.' },
+        { key: 'quality', score: 21, feedback: '기획서 완성도 높음.' },
+        { key: 'safety', score: 18, feedback: '문제 없음.' },
+        { key: 'usability', score: 13, feedback: '교사 가이드 명확.' },
+        { key: 'market', score: 13, feedback: '코딩 교육 수요 높음.' },
       ],
     },
+    finalReview: { admin: '관리자', date: '2026-07-04' },
   },
   {
     id: 'ca012', code: 'CA-2026-003', title: '나의 꿈 직업 탐험',
@@ -290,22 +327,26 @@ export const contentAssets: ContentAsset[] = [
     studioProjectId: 'career_explore_01',
     aiReview: { date: '2026-04-20', passed: true, issues: [] },
     humanReview: {
-      reviewer: '최선임', date: '2026-05-10', total: 90,
+      reviewer: '이서현 연구위원', date: '2026-05-10', total: 90, passed: true,
+      note: '진로교육 성취기준 연계가 명확하고 운영도 용이합니다.',
       scores: [
-        { key: 'edu', score: 19, feedback: '진로교육 성취기준 연계.' },
-        { key: 'quality', score: 18, feedback: '완성도 높음.' },
-        { key: 'safety', score: 20, feedback: '문제 없음.' },
-        { key: 'usability', score: 17, feedback: '운영 용이.' },
-        { key: 'market', score: 16, feedback: '중학교 진로 수요 있음.' },
+        { key: 'edu', score: 23, feedback: '진로교육 성취기준 연계.' },
+        { key: 'quality', score: 22, feedback: '완성도 높음.' },
+        { key: 'safety', score: 19, feedback: '문제 없음.' },
+        { key: 'usability', score: 13, feedback: '운영 용이.' },
+        { key: 'market', score: 13, feedback: '중학교 진로 수요 있음.' },
       ],
     },
+    finalReview: { admin: '관리자', date: '2026-05-14' },
   },
 ];
 
-// ── 크리에이터 지급 정보 mock (지급 예정 단계 UI용) ──
+// ── 크리에이터 지급 정보 mock ──
+// 여기에 없는 크리에이터는 "개인정보 미입력" 상태 — 최종 승인 시 지급예정 대신
+// 검수완료(통과)에 머무르고, 크리에이터가 직접 입력해야 지급예정으로 넘어갑니다.
+// (오정민 jmoh@school.edu 은 그 시나리오를 보여주기 위해 의도적으로 비워둡니다.)
 export const creatorPayoutByEmail: Record<string, CreatorPayoutInfo> = {
   'soyoung@story.edu': { residentId: '900101-2******', address: '대전광역시 서구 둔산로 100, 101동 1204호', bankAccount: '국민은행 123-456-789012 (한소영)' },
-  'jmoh@school.edu': { residentId: '850315-1******', address: '인천광역시 남동구 구월로 55', bankAccount: '신한은행 110-334-556677 (오정민)' },
   'heeyul@edu.kr': { residentId: '880722-2******', address: '대전광역시 유성구 대학로 99', bankAccount: '우리은행 1002-334-889900 (김희율)' },
   'junhyuk@edu.kr': { residentId: '770908-1******', address: '서울특별시 종로구 율곡로 10', bankAccount: '카카오뱅크 3333-12-4567890 (이준혁)' },
   'suji@eco.edu': { residentId: '920503-2******', address: '경기도 성남시 분당구 정자일로 20', bankAccount: '하나은행 620-910234-56707 (이수진)' },
@@ -387,13 +428,52 @@ export const knowledgePosts: KnowledgePost[] = [
 
 // ── 자문단 (2차 검증 외부 자문위원) ──
 export const advisors: Advisor[] = [
-  { id: 'adv001', name: '정하늘 교수', email: 'ha.jung@snue.ac.kr', affiliation: '서울교육대학교 수학교육과', specialty: '초등 수학·창의사고', status: 'active' },
-  { id: 'adv002', name: '김도윤 교수', email: 'doyoon.kim@knue.ac.kr', affiliation: '한국교원대학교 과학교육과', specialty: '중등 과학·STEAM', status: 'active' },
-  { id: 'adv003', name: '이서현 연구위원', email: 'sh.lee@kice.re.kr', affiliation: '한국교육과정평가원', specialty: '교육과정 성취기준 연계', status: 'active' },
-  { id: 'adv004', name: '박준영 선생님', email: 'jy.park@moral.or.kr', affiliation: '전국도덕교육연구회', specialty: '인성·학교폭력 예방교육', status: 'active' },
-  { id: 'adv005', name: '최유진 박사', email: 'yj.choi@ecoedu.org', affiliation: '생태환경교육센터', specialty: '기후·생태 환경교육', status: 'active' },
-  { id: 'adv006', name: '한지호 교수', email: 'jiho.han@dgist.ac.kr', affiliation: 'DGIST 정보교육연구소', specialty: '정보·디지털 리터러시', status: 'active' },
-  { id: 'adv007', name: '송미라 선임연구원', email: 'mira.song@history.re.kr', affiliation: '역사교육연구소', specialty: '역사 계기교육', status: 'inactive' },
+  { id: 'adv001', name: '정하늘 교수', email: 'ha.jung@snue.ac.kr', affiliation: '서울교육대학교 수학교육과', specialty: '초등 수학·창의사고', type: 'professor', categories: ['A', 'C'], status: 'active' },
+  { id: 'adv002', name: '김도윤 교수', email: 'doyoon.kim@knue.ac.kr', affiliation: '한국교원대학교 과학교육과', specialty: '중등 과학·STEAM', type: 'professor', categories: ['A', 'C'], status: 'active' },
+  { id: 'adv003', name: '이서현 연구위원', email: 'sh.lee@kice.re.kr', affiliation: '한국교육과정평가원', specialty: '교육과정 성취기준 연계', type: 'researcher', categories: ['A', 'B'], status: 'active' },
+  { id: 'adv004', name: '박준영 선생님', email: 'jy.park@moral.or.kr', affiliation: '전국도덕교육연구회', specialty: '인성·학교폭력 예방교육', type: 'teacher', categories: ['B', 'D'], status: 'active' },
+  { id: 'adv005', name: '최유진 박사', email: 'yj.choi@ecoedu.org', affiliation: '생태환경교육센터', specialty: '기후·생태 환경교육', type: 'researcher', categories: ['B'], status: 'active' },
+  { id: 'adv006', name: '한지호 교수', email: 'jiho.han@dgist.ac.kr', affiliation: 'DGIST 정보교육연구소', specialty: '정보·디지털 리터러시', type: 'professor', categories: ['A', 'B'], status: 'active' },
+  { id: 'adv007', name: '송미라 선임연구원', email: 'mira.song@history.re.kr', affiliation: '역사교육연구소', specialty: '역사 계기교육', type: 'industry', categories: ['A', 'D'], status: 'inactive' },
+];
+
+// ─────────────────────────────────────────────────────────────
+// 로그인 계정.
+// 검수자·크리에이터 계정은 검수자 명단과 제출 콘텐츠에서 파생시킵니다.
+// 손으로 따로 관리하면 사람이 늘어날 때마다 어긋나기 때문입니다.
+// 실연동 시 이 배열 전체가 사용자 테이블로 대체됩니다.
+// ─────────────────────────────────────────────────────────────
+export const DEMO_PASSWORD = 'realworld2026';
+
+const creatorAccounts = (): UserAccount[] => {
+  const seen = new Map<string, ContentAsset>();
+  contentAssets.forEach(a => { if (!seen.has(a.creatorEmail)) seen.set(a.creatorEmail, a); });
+  return [...seen.values()].map((a, i) => ({
+    id: `u_cr${String(i + 1).padStart(2, '0')}`,
+    email: a.creatorEmail,
+    password: DEMO_PASSWORD,
+    name: a.creatorName,
+    role: 'creator' as const,
+    affiliation: a.institution,
+    status: 'active' as const,
+  }));
+};
+
+export const userAccounts: UserAccount[] = [
+  {
+    id: 'u_admin', email: 'admin@realworld-school.org', password: DEMO_PASSWORD,
+    name: '관리자', role: 'admin', affiliation: '리얼월드 스쿨 운영팀', status: 'active',
+  },
+  ...advisors.map((adv, i) => ({
+    id: `u_rv${String(i + 1).padStart(2, '0')}`,
+    email: adv.email,
+    password: DEMO_PASSWORD,
+    name: adv.name,
+    role: 'reviewer' as const,
+    affiliation: adv.affiliation,
+    status: adv.status,
+  })),
+  ...creatorAccounts(),
 ];
 
 export const roadmap: RoadmapItem[] = [
