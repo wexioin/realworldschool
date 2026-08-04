@@ -38,7 +38,7 @@ const SINGLEFILE = import.meta.env.VITE_SINGLEFILE === '1';
 const SHARED_VIEWER: SessionUser = {
   role: 'admin',
   name: '관리자',
-  email: 'admin@realworld-school.org',
+  email: 'admin@e-redpoint.com',
   affiliation: '리얼월드 스쿨 운영팀',
 };
 

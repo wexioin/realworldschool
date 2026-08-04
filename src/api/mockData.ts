@@ -122,7 +122,8 @@ export const contentAssets: ContentAsset[] = [
     creatorName: '최민서', creatorEmail: 'minseo@busan.edu', institution: '부산중학교',
     submittedDate: '2026-07-01', grade: '중학생', envType: 'indoor', groupType: 'solo',
     category: 'A-03', price: 5000, status: 'first_review_pending',
-    studioProjectId: 'math_puzzle_master_01', planPptUrl: 'https://drive.google.com/mock/plan-ppt-ca001', planDocUrl: 'https://drive.google.com/mock/plan-doc-ca001', guideUrl: 'https://drive.google.com/mock/guide-ca001',
+    kind: 'personal',
+    studioProjectId: 'math_puzzle_master_01',
     mockAiIssues: [],
   },
   {
@@ -131,6 +132,7 @@ export const contentAssets: ContentAsset[] = [
     creatorName: '에듀AI 콘텐츠팀', creatorEmail: 'content@eduai.kr', institution: '(주)에듀AI',
     submittedDate: '2026-06-28', grade: '고등학생', envType: 'indoor', groupType: 'team',
     category: 'A-09', price: 20000, status: 'first_review_pending',
+    kind: 'original',
     studioProjectId: 'partners_cr_001', planPptUrl: 'https://drive.google.com/mock/plan-ppt-ca002', planDocUrl: 'https://drive.google.com/mock/plan-doc-ca002', guideUrl: 'https://drive.google.com/mock/guide-ca002',
     mockAiIssues: ['미션 3-2에서 정답 입력 후 다음 단계로 진행되지 않음 (분기 오류)', '이미지 자산 2개 로딩 실패 (경로 오류)'],
   },
@@ -140,7 +142,8 @@ export const contentAssets: ContentAsset[] = [
     creatorName: '박영수', creatorEmail: 'park@edu.kr', institution: '서울초등학교',
     submittedDate: '2026-06-15', grade: '초등 저학년', envType: 'indoor', groupType: 'solo',
     category: 'B-01', price: 5000, status: 'second_review_pending',
-    studioProjectId: 'teacher_cr_004', planPptUrl: 'https://drive.google.com/mock/plan-ppt-ca003', planDocUrl: 'https://drive.google.com/mock/plan-doc-ca003', guideUrl: 'https://drive.google.com/mock/guide-ca003',
+    kind: 'personal',
+    studioProjectId: 'teacher_cr_004',
     aiReview: { date: '2026-06-18', passed: true, issues: [] },
     advisorAssignment: {
       advisorId: 'adv004', advisorName: '박준영 선생님', advisorEmail: 'jy.park@moral.or.kr',
@@ -156,7 +159,8 @@ export const contentAssets: ContentAsset[] = [
     creatorName: '김민재 외 4명', creatorEmail: 'minji.k@seoulhs.kr', institution: '서울고등학교',
     submittedDate: '2026-06-20', grade: '고등학생', envType: 'mixed', groupType: 'team',
     category: 'A-05', price: 0, status: 'reviewer_assignment_pending',
-    studioProjectId: 'student_cr_001', planPptUrl: 'https://drive.google.com/mock/plan-ppt-ca004', planDocUrl: 'https://drive.google.com/mock/plan-doc-ca004', guideUrl: 'https://drive.google.com/mock/guide-ca004',
+    kind: 'personal',
+    studioProjectId: 'student_cr_001',
     aiReview: { date: '2026-06-23', passed: true, issues: [] },
   },
   {
@@ -165,6 +169,7 @@ export const contentAssets: ContentAsset[] = [
     creatorName: '국립생태원 교육팀', creatorEmail: 'edu@nie.re.kr', institution: '국립생태원',
     submittedDate: '2026-05-10', grade: '중학생', envType: 'outdoor', groupType: 'class',
     category: 'B-08', price: 15000, status: 'final_approval_pending',
+    kind: 'original',
     studioProjectId: 'institution_cr_001', planPptUrl: 'https://drive.google.com/mock/plan-ppt-ca005', planDocUrl: 'https://drive.google.com/mock/plan-doc-ca005', guideUrl: 'https://drive.google.com/mock/guide-ca005',
     aiReview: { date: '2026-05-15', passed: true, issues: [] },
     advisorAssignment: {
@@ -192,7 +197,8 @@ export const contentAssets: ContentAsset[] = [
     creatorName: '이수진', creatorEmail: 'suji@eco.edu',
     submittedDate: '2026-06-10', grade: '전학년', envType: 'mixed', groupType: 'class',
     category: 'B-08', price: 3000, status: 'second_revision_requested',
-    studioProjectId: 'eco_campaign_01', planPptUrl: 'https://drive.google.com/mock/plan-ppt-ca006', planDocUrl: 'https://drive.google.com/mock/plan-doc-ca006', guideUrl: 'https://drive.google.com/mock/guide-ca006',
+    kind: 'personal',
+    studioProjectId: 'eco_campaign_01',
     aiReview: { date: '2026-06-12', passed: true, issues: [] },
     advisorAssignment: {
       advisorId: 'adv005', advisorName: '최유진 박사', advisorEmail: 'yj.choi@ecoedu.org',
@@ -220,6 +226,7 @@ export const contentAssets: ContentAsset[] = [
     creatorName: '한소영', creatorEmail: 'soyoung@story.edu', institution: '대전초등학교',
     submittedDate: '2026-05-28', grade: '초등 저학년', envType: 'indoor', groupType: 'solo',
     category: 'C-02', price: 4000, status: 'payment_pending',
+    kind: 'original',
     studioProjectId: 'folktale_story_01', planPptUrl: 'https://drive.google.com/mock/plan-ppt-ca007', planDocUrl: 'https://drive.google.com/mock/plan-doc-ca007', guideUrl: 'https://drive.google.com/mock/guide-ca007',
     aiReview: { date: '2026-05-30', passed: true, issues: [] },
     humanReview: {
@@ -241,6 +248,7 @@ export const contentAssets: ContentAsset[] = [
     creatorName: '오정민', creatorEmail: 'jmoh@school.edu', institution: '인천중학교',
     submittedDate: '2026-05-20', grade: '중학생', envType: 'indoor', groupType: 'team',
     category: 'B-03', price: 6000, status: 'approved',
+    kind: 'original',
     studioProjectId: 'anti_bullying_01', planPptUrl: 'https://drive.google.com/mock/plan-ppt-ca008', planDocUrl: 'https://drive.google.com/mock/plan-doc-ca008', guideUrl: 'https://drive.google.com/mock/guide-ca008',
     aiReview: { date: '2026-05-22', passed: true, issues: [] },
     humanReview: {
@@ -262,6 +270,7 @@ export const contentAssets: ContentAsset[] = [
     creatorName: '장우혁', creatorEmail: 'whjang@teach.kr', institution: '광주초등학교',
     submittedDate: '2026-05-02', grade: '초등 고학년', envType: 'mixed', groupType: 'team',
     category: 'D-01', price: 5000, status: 'rejected',
+    kind: 'original',
     rejection: {
       admin: '관리자', date: '2026-05-12',
       reason: '학교 안전 규정과 충돌하는 동선 설계(급식실 조리 구역 진입). 안전성 기준 미달로 반려합니다.',
@@ -286,7 +295,8 @@ export const contentAssets: ContentAsset[] = [
     creatorName: '서지혜', creatorEmail: 'jhseo@civic.edu', institution: '서울중학교',
     submittedDate: '2026-07-03', grade: '중학생', envType: 'indoor', groupType: 'class',
     category: 'B-09', price: 4500, status: 'first_revision_requested',
-    studioProjectId: 'civic_vote_01', planPptUrl: 'https://drive.google.com/mock/plan-ppt-ca010', planDocUrl: 'https://drive.google.com/mock/plan-doc-ca010', guideUrl: 'https://drive.google.com/mock/guide-ca010',
+    kind: 'personal',
+    studioProjectId: 'civic_vote_01',
     aiReview: {
       date: '2026-07-05', passed: false,
       issues: ['개표 결과 화면에서 득표수 합계가 총 투표수와 일치하지 않음', '학생 이름 입력란에 개인정보 수집 동의 안내가 없음'],
@@ -299,8 +309,9 @@ export const contentAssets: ContentAsset[] = [
     creatorName: '김희율', creatorEmail: 'heeyul@edu.kr', institution: '대전중학교',
     submittedDate: '2026-06-22', grade: '초등 고학년', envType: 'indoor', groupType: 'solo',
     category: 'A-09', price: 8000, status: 'paid',
-    paymentCompletedDate: '2026-07-08',
-    studioProjectId: 'coding_robot_city', planPptUrl: 'https://drive.google.com/mock/plan-ppt-ca011',
+    paymentSkipped: true,
+    kind: 'personal',
+    studioProjectId: 'coding_robot_city',
     aiReview: { date: '2026-06-25', passed: true, issues: [] },
     humanReview: {
       reviewer: '한지호 교수', date: '2026-07-01', total: 87, passed: true,
@@ -321,6 +332,7 @@ export const contentAssets: ContentAsset[] = [
     creatorName: '이준혁', creatorEmail: 'junhyuk@edu.kr', institution: '서울초등학교',
     submittedDate: '2026-04-15', grade: '중학생', envType: 'indoor', groupType: 'team',
     category: 'B-09', price: 5500, status: 'released',
+    kind: 'original',
     paymentCompletedDate: '2026-06-20',
     releasedDate: '2026-07-01',
     releasedUrl: 'https://school.realworld.to/content/ca-2026-003',
@@ -461,8 +473,8 @@ const creatorAccounts = (): UserAccount[] => {
 
 export const userAccounts: UserAccount[] = [
   {
-    id: 'u_admin', email: 'admin@realworld-school.org', password: DEMO_PASSWORD,
-    name: '관리자', role: 'admin', affiliation: '리얼월드 스쿨 운영팀', status: 'active',
+    id: 'u_admin', email: 'admin@e-redpoint.com', password: DEMO_PASSWORD,
+    name: '관리자', role: 'admin', affiliation: '리얼월드 스쿨 운영팀', phone: '02-0000-0000', status: 'active',
   },
   ...advisors.map((adv, i) => ({
     id: `u_rv${String(i + 1).padStart(2, '0')}`,

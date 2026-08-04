@@ -13,15 +13,16 @@ import {
   useContentAssets, useCreators, useSaveContentAsset, useRunAiReview, useSubmitReviewScores,
   useFinalApproveAsset, useRejectAsset,
   useAdvisors, useAssignAdvisor, useSendAdvisorReminder, useKnowledgePosts,
-  useCompletePayment, useReleaseContent, useSendRevisionReminder, useMarkRevisionComplete,
+  useCompletePayment, useSkipPayment, useReleaseContent, useSendRevisionReminder, useMarkRevisionComplete,
   useRoadmap,
   creatorPayoutByEmail, contentCatalog, contentForms,
 } from '../api';
-import type { ContentAsset, AssetStatus, CriterionScore, CriterionKey, AssetGrade, AssetEnvType, AssetGroupType, Creator, Advisor, AdvisorAssignment, RevisionRequest, KnowledgePost, CreatorPayoutInfo, Content, ContentForm, DevStage, SaleStatus } from '../api/types';
+import type { ContentAsset, AssetStatus, CriterionScore, CriterionKey, AssetGrade, AssetEnvType, AssetGroupType, Creator, Advisor, AdvisorAssignment, RevisionRequest, KnowledgePost, CreatorPayoutInfo, Content, ContentForm, DevStage, SaleStatus, ContentKind } from '../api/types';
 import {
   REVIEW_CRITERIA, CRITERION_COMMENT_OPTIONS, CONTENT_CATEGORY_GROUPS, CORE_COMPETENCIES,
   ASSET_STATUS_META, IN_REVIEW_STATUSES, REVIEW_PASS_MARK,
   ASSIGNMENT_DEADLINE_DAYS, REVISION_DEADLINE_DAYS,
+  CONTENT_KIND_META, hasPlanDocs, needsPayment,
 } from '../api/types';
 import { useSession } from '../session';
 import {
@@ -143,6 +144,7 @@ const EMPTY_ASSET: ContentAsset = {
   submittedDate: new Date().toISOString().slice(0, 10),
   grade: '초등 고학년', envType: 'indoor', groupType: 'team',
   category: ALL_CATEGORY_OPTIONS[0].value, price: 0, status: 'first_review_pending',
+  kind: 'original',
   studioProjectId: '', planPptUrl: '', planDocUrl: '', guideUrl: '',
   mockAiIssues: [],
 };
@@ -150,6 +152,7 @@ const EMPTY_ASSET: ContentAsset = {
 const ASSET_FIELDS: FieldDef<ContentAsset>[] = [
   { key: 'title', label: '콘텐츠명', required: true, colSpan: 2 },
   { key: 'code', label: '코드', required: true, placeholder: '예: CA-024' },
+  { key: 'kind', label: '콘텐츠 구분', type: 'select', required: true, options: (['original', 'personal'] as ContentKind[]).map(v => ({ value: v, label: CONTENT_KIND_META[v].label })) },
   { key: 'category', label: '카테고리', type: 'select', required: true, options: ALL_CATEGORY_OPTIONS },
   { key: 'creatorName', label: '크리에이터', required: true },
   { key: 'creatorEmail', label: '크리에이터 이메일', required: true },
@@ -160,9 +163,9 @@ const ASSET_FIELDS: FieldDef<ContentAsset>[] = [
   { key: 'price', label: '가격 (원)', type: 'number' },
   { key: 'submittedDate', label: '제출일', type: 'date' },
   { key: 'studioProjectId', label: '스튜디오 프로젝트 ID', colSpan: 2, placeholder: '스튜디오 바로가기 링크에 사용' },
-  { key: 'planPptUrl', label: '기획서(PPT) 링크', colSpan: 2 },
-  { key: 'planDocUrl', label: '기획서(Word) 링크', colSpan: 2 },
-  { key: 'guideUrl', label: '운영 가이드 링크', colSpan: 2 },
+  { key: 'planPptUrl', label: '기획서(PPT) 링크 (오리지널)', colSpan: 2 },
+  { key: 'planDocUrl', label: '기획서(Word) 링크 (오리지널)', colSpan: 2 },
+  { key: 'guideUrl', label: '운영 가이드 링크 (오리지널)', colSpan: 2 },
   { key: 'description', label: '설명', type: 'textarea', colSpan: 2 },
 ];
 
@@ -1008,6 +1011,7 @@ function PipelineTab() {
   const assignAdvisor = useAssignAdvisor();
   const sendReminder = useSendAdvisorReminder();
   const completePayment = useCompletePayment();
+  const skipPayment = useSkipPayment();
   const releaseContent = useReleaseContent();
   const sendRevisionReminder = useSendRevisionReminder();
   const markRevisionComplete = useMarkRevisionComplete();
@@ -1047,7 +1051,23 @@ function PipelineTab() {
     });
   };
 
-  const handleFinalApprove = (a: ContentAsset) => {
+  const handleFinalApprove = (a: ContentAsset, opts?: { skipPayment?: boolean }) => {
+    if (a.kind === 'personal') {
+      if (!window.confirm(`「${a.title}」를 최종 승인할까요?\n개인 콘텐츠는 지급 단계 없이 출시 예정으로 넘어갑니다.`)) return;
+      finalApprove.mutate({ id: a.id, admin: user.name }, {
+        onSuccess: () => toast.success('최종 승인되었습니다. 출시 예정으로 이동합니다.'),
+      });
+      return;
+    }
+
+    if (opts?.skipPayment) {
+      if (!window.confirm(`「${a.title}」를 최종 승인하고 지급을 스킵할까요?\n(월급 직원 등) 출시 예정으로 바로 넘어갑니다.`)) return;
+      finalApprove.mutate({ id: a.id, admin: user.name, skipPayment: true }, {
+        onSuccess: () => toast.success('최종 승인·지급 스킵 — 출시 예정으로 이동합니다.'),
+      });
+      return;
+    }
+
     const hasPayout = !!creatorPayoutByEmail[a.creatorEmail];
     const nextLabel = hasPayout
       ? '지급 정보가 등록되어 있어 바로 지급예정으로 넘어갑니다.'
@@ -1057,8 +1077,18 @@ function PipelineTab() {
       onSuccess: (res) => toast.success(
         res.status === 'payment_pending'
           ? '최종 승인되었습니다. 지급 예정 목록으로 이동합니다.'
-          : '최종 승인되었습니다. 크리에이터 지급 정보 입력을 기다립니다.'
+          : res.status === 'paid'
+            ? '최종 승인되었습니다. 출시 예정으로 이동합니다.'
+            : '최종 승인되었습니다. 크리에이터 지급 정보 입력을 기다립니다.',
       ),
+    });
+  };
+
+  const handleSkipPayment = (a: ContentAsset) => {
+    const reason = window.prompt(`「${a.title}」 지급 스킵 사유 (선택)\n예: 월급 직원 담당`);
+    if (reason === null) return;
+    skipPayment.mutate({ id: a.id, admin: user.name, reason: reason.trim() || undefined }, {
+      onSuccess: () => toast.success('지급을 스킵하고 출시 예정으로 전환했습니다.'),
     });
   };
 
@@ -1107,7 +1137,11 @@ function PipelineTab() {
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-semibold text-gray-900">{a.title}</p>
-                    <StatusBadge label={meta.label} tone={meta.tone} />
+                    <StatusBadge label={CONTENT_KIND_META[a.kind].label} tone={CONTENT_KIND_META[a.kind].tone} />
+                    <StatusBadge
+                      label={a.status === 'paid' && a.paymentSkipped ? '출시 예정 (지급 없음)' : meta.label}
+                      tone={meta.tone}
+                    />
                     <StatusBadge label={`${a.category} · ${categoryLabel(a.category)}`} tone="gray" />
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
@@ -1161,13 +1195,22 @@ function PipelineTab() {
                       </button>
                     </>
                   )}
-                  {a.status === 'approved' && (
-                    <button
-                      onClick={() => setPaymentOf(a)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-amber-100 border border-amber-200 text-amber-700 rounded-lg hover:bg-amber-200/60 transition-colors"
-                    >
-                      <CreditCard size={13} /> 지급 정보 현황
-                    </button>
+                  {a.status === 'approved' && needsPayment(a) && (
+                    <>
+                      <button
+                        onClick={() => setPaymentOf(a)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-amber-100 border border-amber-200 text-amber-700 rounded-lg hover:bg-amber-200/60 transition-colors"
+                      >
+                        <CreditCard size={13} /> 지급 정보 현황
+                      </button>
+                      <button
+                        onClick={() => handleSkipPayment(a)}
+                        disabled={skipPayment.isPending}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                      >
+                        <Wallet size={13} /> 지급 스킵
+                      </button>
+                    </>
                   )}
                   {a.status === 'final_approval_pending' && (
                     <>
@@ -1175,8 +1218,16 @@ function PipelineTab() {
                         onClick={() => handleFinalApprove(a)}
                         className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-emerald-100 border border-emerald-200 text-emerald-700 rounded-lg hover:bg-emerald-200/60 transition-colors"
                       >
-                        <Gavel size={13} /> 최종 승인
+                        <Gavel size={13} /> {a.kind === 'personal' ? '최종 승인 (지급 없음)' : '최종 승인'}
                       </button>
+                      {a.kind === 'original' && (
+                        <button
+                          onClick={() => handleFinalApprove(a, { skipPayment: true })}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-white border border-amber-200 text-amber-700 rounded-lg hover:bg-amber-50 transition-colors"
+                        >
+                          <Wallet size={13} /> 승인 · 지급 스킵
+                        </button>
+                      )}
                       <button
                         onClick={() => handleReject(a)}
                         className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-white border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors"
@@ -1204,12 +1255,21 @@ function PipelineTab() {
                     </>
                   )}
                   {a.status === 'payment_pending' && (
-                    <button
-                      onClick={() => setPaymentOf(a)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-primary-100 border border-primary-200 text-primary-700 rounded-lg hover:bg-primary-200/60 transition-colors"
-                    >
-                      <Wallet size={13} /> 지급 처리
-                    </button>
+                    <>
+                      <button
+                        onClick={() => setPaymentOf(a)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-primary-100 border border-primary-200 text-primary-700 rounded-lg hover:bg-primary-200/60 transition-colors"
+                      >
+                        <Wallet size={13} /> 지급 처리
+                      </button>
+                      <button
+                        onClick={() => handleSkipPayment(a)}
+                        disabled={skipPayment.isPending}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                      >
+                        지급 스킵
+                      </button>
+                    </>
                   )}
                   {a.status === 'paid' && (
                     <button
@@ -1240,13 +1300,17 @@ function PipelineTab() {
                 </div>
               </div>
 
-              {/* 검수용 문서 링크 — 출시 완료는 기본 정보만 표시 */}
+              {/* 검수용 문서 링크 — 개인 콘텐츠는 기획서·운영가이드 없음 */}
               {a.status !== 'released' ? (
               <div className="flex items-center gap-2 flex-wrap mb-3">
                 <DocLink href={a.studioProjectId ? `${STUDIO_BASE}/${a.studioProjectId}` : undefined} label="스튜디오" icon={ExternalLink} />
-                <DocLink href={a.planPptUrl} label="기획서(PPT)" icon={FileType2} />
-                <DocLink href={a.planDocUrl} label="기획서(Word)" icon={FileText} />
-                <DocLink href={a.guideUrl} label="운영 가이드" icon={BookOpenCheck} />
+                {hasPlanDocs(a) && (
+                  <>
+                    <DocLink href={a.planPptUrl} label="기획서(PPT)" icon={FileType2} />
+                    <DocLink href={a.planDocUrl} label="기획서(Word)" icon={FileText} />
+                    <DocLink href={a.guideUrl} label="운영 가이드" icon={BookOpenCheck} />
+                  </>
+                )}
               </div>
               ) : (
               <div className="flex items-center gap-3 flex-wrap mb-3 text-xs text-gray-500">
@@ -1254,6 +1318,7 @@ function PipelineTab() {
                 <span>·</span>
                 <span>가격 {formatCurrency(a.price)}</span>
                 {a.paymentCompletedDate && <><span>·</span><span>지급 완료 {formatDate(a.paymentCompletedDate)}</span></>}
+                {a.paymentSkipped && <><span>·</span><span>지급 없음 ({a.kind === 'personal' ? '개인·로열티' : '스킵'})</span></>}
               </div>
               )}
 
@@ -2026,6 +2091,9 @@ function ReleaseModal({ asset, submitting, onClose, onRelease }: {
         <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4">
           <p className="text-sm font-bold text-gray-900">{asset.title}</p>
           <p className="text-xs text-gray-500 mt-0.5">{asset.code} · {asset.creatorName} · {asset.grade}</p>
+          {asset.paymentSkipped && (
+            <p className="text-xs text-gray-500 mt-2">지급 없음 — {asset.kind === 'personal' ? '개인 콘텐츠(실적 로열티)' : '운영자 스킵'}</p>
+          )}
           {asset.paymentCompletedDate && (
             <p className="text-xs text-emerald-700 mt-2">지급 완료일 {formatDate(asset.paymentCompletedDate)}</p>
           )}

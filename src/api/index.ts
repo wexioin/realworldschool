@@ -3,9 +3,12 @@ import type {
   ErpApi, DashboardData, BadgeCounts, Content, Member, Creator, Partner,
   KitProduct, ExperienceProgram, PlanProduct, Settlement, SettlementStatus, BookingStatus,
   ContentAsset, BrandAsset, KnowledgePost, CriterionScore, Advisor, AdvisorAssignment,
-  AssetStatus, CreatorPayoutInfo, RevisionRequest, UserAccount,
+  AssetStatus, CreatorPayoutInfo, RevisionRequest, UserAccount, SignupRequest,
 } from './types';
-import { REVIEW_PASS_MARK, REVISION_DEADLINE_DAYS, IN_REVIEW_STATUSES, LoginError } from './types';
+import {
+  REVIEW_PASS_MARK, REVISION_DEADLINE_DAYS, IN_REVIEW_STATUSES,
+  LoginError, SignupError, isAdminEmail,
+} from './types';
 import * as mock from './mockData';
 
 // ─────────────────────────────────────────────────────────────
@@ -71,6 +74,121 @@ class MockApi implements ErpApi {
     return delay(account, 400); // 서버 왕복 시뮬레이션
   }
 
+  async signup(req: SignupRequest) {
+    const email = req.email.trim().toLowerCase();
+    if (!email || !req.password || !req.name.trim()) throw new SignupError('invalid_payload');
+    if (req.password.length < 8) throw new SignupError('weak_password');
+    if (mock.userAccounts.some(u => u.email.toLowerCase() === email)) {
+      throw new SignupError('email_taken');
+    }
+
+    if (req.role === 'admin') {
+      if (!isAdminEmail(email)) throw new SignupError('invalid_admin_domain');
+      const account: UserAccount = {
+        id: genId('u_admin'),
+        email,
+        password: req.password,
+        name: req.name.trim(),
+        role: 'admin',
+        affiliation: req.affiliation.trim(),
+        phone: req.phone.trim(),
+        status: 'active',
+      };
+      mock.userAccounts.unshift(account);
+      return delay(account, 500);
+    }
+
+    if (req.role === 'reviewer') {
+      if (!req.affiliation.trim() || !req.specialty.trim() || req.categories.length === 0) {
+        throw new SignupError('invalid_payload');
+      }
+      const account: UserAccount = {
+        id: genId('u_rv'),
+        email,
+        password: req.password,
+        name: req.name.trim(),
+        role: 'reviewer',
+        affiliation: req.affiliation.trim(),
+        phone: req.phone.trim(),
+        status: 'active',
+      };
+      const advisor: Advisor = {
+        id: genId('adv'),
+        name: account.name,
+        email,
+        affiliation: req.affiliation.trim(),
+        specialty: req.specialty.trim(),
+        type: req.type,
+        categories: [...req.categories],
+        phone: req.phone.trim(),
+        status: 'active',
+      };
+      mock.userAccounts.unshift(account);
+      mock.advisors.unshift(advisor);
+      return delay(account, 500);
+    }
+
+    // creator
+    if (!req.institution.trim() || !req.phone.trim()) throw new SignupError('invalid_payload');
+    if (!req.studioEmail.trim() || !req.schoolOrgEmail.trim()) throw new SignupError('invalid_payload');
+    if (!payoutComplete(req.payout)) throw new SignupError('invalid_payload');
+
+    const account: UserAccount = {
+      id: genId('u_cr'),
+      email,
+      password: req.password,
+      name: req.name.trim(),
+      role: 'creator',
+      affiliation: req.institution.trim(),
+      phone: req.phone.trim(),
+      status: 'active',
+    };
+    const creator: Creator = {
+      id: genId('cr'),
+      name: account.name,
+      type: req.type,
+      institution: req.institution.trim(),
+      email,
+      phone: req.phone.trim(),
+      joinedDate: today(),
+      status: 'pending',
+      contentCount: 0,
+      totalRevenue: 0,
+      pendingSettlement: 0,
+      lastActiveDate: today(),
+      identitySource: req.identitySource,
+      studioEmail: req.studioEmail.trim().toLowerCase(),
+      schoolOrgEmail: req.schoolOrgEmail.trim().toLowerCase(),
+    };
+    mock.userAccounts.unshift(account);
+    mock.creators.unshift(creator);
+    mock.creatorPayoutByEmail[email] = { ...req.payout };
+    return delay(account, 500);
+  }
+
+  async previewSchoolProfile(email: string) {
+    const e = email.trim().toLowerCase();
+    if (!e.includes('@')) return delay(null, 300);
+    // mock: 실연동 시 School.org OAuth 프로필. 이메일 로컬파트로 이름 추정.
+    const local = e.split('@')[0].replace(/[._]/g, ' ');
+    const name = local
+      .split(' ')
+      .filter(Boolean)
+      .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ') || 'School 회원';
+    return delay({
+      name,
+      institution: '연동된 학교 (mock)',
+      phone: '010-0000-0000',
+    }, 400);
+  }
+
+  async previewStudioAccount(email: string) {
+    const e = email.trim().toLowerCase();
+    if (!e.includes('@')) return delay(null, 300);
+    return delay({ email: e }, 350);
+  }
+
   listAccounts() { return delay([...mock.userAccounts]); }
 
   listContents()           { return delay([...mock.contents]); }
@@ -114,7 +232,16 @@ class MockApi implements ErpApi {
   // ── 콘텐츠 자산 (검수 파이프라인) ──
   listContentAssets() { return delay([...mock.contentAssets]); }
 
-  async saveContentAsset(a: ContentAsset) { upsert(mock.contentAssets, a, 'ca'); return delay(undefined); }
+  async saveContentAsset(a: ContentAsset) {
+    const next = { ...a };
+    if (next.kind === 'personal') {
+      next.planPptUrl = undefined;
+      next.planDocUrl = undefined;
+      next.guideUrl = undefined;
+    }
+    upsert(mock.contentAssets, next, 'ca');
+    return delay(undefined);
+  }
 
   /** 상태 변경을 한 곳으로 모아 statusChangedAt을 항상 함께 갱신합니다. */
   private transition(a: ContentAsset, status: AssetStatus) {
@@ -185,10 +312,26 @@ class MockApi implements ErpApi {
     return delay({ total, passed });
   }
 
-  // ⑧⑨ 최종 승인 — 지급 정보 완비 여부로 다음 상태가 갈립니다.
-  async finalApproveAsset(id: string, admin: string, note?: string) {
+  // ⑧⑨ 최종 승인 — 콘텐츠 구분·지급 스킵·지급정보 완비로 다음 상태가 갈립니다.
+  async finalApproveAsset(
+    id: string,
+    admin: string,
+    note?: string,
+    opts?: { skipPayment?: boolean },
+  ) {
     const a = this.mustFind(id);
     a.finalReview = { admin, date: today(), note };
+
+    // 개인 콘텐츠는 지급 단계 없음. 오리지널도 운영자가 스킵할 수 있음.
+    const skip = a.kind === 'personal' || !!opts?.skipPayment;
+    if (skip) {
+      a.paymentSkipped = true;
+      a.paymentCompletedDate = undefined;
+      this.transition(a, 'paid');
+      return delay({ status: 'paid' as AssetStatus });
+    }
+
+    a.paymentSkipped = false;
     const next: AssetStatus = payoutComplete(mock.creatorPayoutByEmail[a.creatorEmail])
       ? 'payment_pending'
       : 'approved';
@@ -218,9 +361,30 @@ class MockApi implements ErpApi {
   // ⑫ 지급 처리
   async completePayment(id: string) {
     const a = this.mustFind(id);
+    if (a.kind === 'personal') throw new Error('개인 콘텐츠는 지급 단계가 없습니다');
+    if (a.paymentSkipped) throw new Error('지급이 스킵된 콘텐츠입니다');
     this.transition(a, 'paid');
+    a.paymentSkipped = false;
     a.paymentCompletedDate = today();
     return delay(undefined, 500);
+  }
+
+  // 오리지널 지급 스킵 (월급 직원 등) — approved / payment_pending → 출시 예정
+  async skipPayment(id: string, admin: string, reason?: string) {
+    const a = this.mustFind(id);
+    if (a.kind !== 'original') throw new Error('오리지널 콘텐츠만 지급을 스킵할 수 있습니다');
+    if (a.status !== 'approved' && a.status !== 'payment_pending') {
+      throw new Error('검수완료(통과) 또는 지급예정 상태에서만 스킵할 수 있습니다');
+    }
+    a.paymentSkipped = true;
+    a.paymentCompletedDate = undefined;
+    a.finalReview = {
+      admin,
+      date: today(),
+      note: [a.finalReview?.note, reason ? `지급 스킵: ${reason}` : '지급 스킵'].filter(Boolean).join(' · '),
+    };
+    this.transition(a, 'paid');
+    return delay(undefined, 400);
   }
 
   // ⑬ 출시 — 입력된 출시 가격으로 콘텐츠 가격을 갱신합니다.
@@ -255,11 +419,16 @@ class MockApi implements ErpApi {
     return delay(undefined);
   }
 
-  // ⑪ 크리에이터 지급 정보 제출 — 대기 중인 "검수완료(통과)" 건을 지급예정으로 넘깁니다.
+  // ⑪ 크리에이터 지급 정보 제출 — 지급이 필요한 오리지널 "검수완료(통과)" 건만 지급예정으로 넘깁니다.
   async submitPayoutInfo(creatorEmail: string, info: CreatorPayoutInfo) {
     mock.creatorPayoutByEmail[creatorEmail] = info;
     mock.contentAssets
-      .filter(a => a.creatorEmail === creatorEmail && a.status === 'approved')
+      .filter(a =>
+        a.creatorEmail === creatorEmail
+        && a.status === 'approved'
+        && a.kind === 'original'
+        && !a.paymentSkipped,
+      )
       .forEach(a => this.transition(a, 'payment_pending'));
     return delay(undefined, 500);
   }
@@ -344,7 +513,22 @@ export { creatorPayoutByEmail, contentCatalog, contentForms, DEMO_PASSWORD } fro
 // ── 인증 훅 ──
 export const useLogin = () =>
   useMutation({ mutationFn: (args: { email: string; password: string }) => api.login(args.email, args.password) });
+export const useSignup = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: SignupRequest) => api.signup(req),
+    onSuccess: () => {
+      ['accounts', 'creators', 'advisors', 'payout', 'badges', 'dashboard'].forEach(k =>
+        qc.invalidateQueries({ queryKey: [k] }),
+      );
+    },
+  });
+};
 export const useAccounts = () => useQuery({ queryKey: ['accounts'], queryFn: () => api.listAccounts() });
+export const usePreviewSchoolProfile = () =>
+  useMutation({ mutationFn: (email: string) => api.previewSchoolProfile(email) });
+export const usePreviewStudioAccount = () =>
+  useMutation({ mutationFn: (email: string) => api.previewStudioAccount(email) });
 
 // ── 조회 훅 ──
 export const useDashboard    = () => useQuery({ queryKey: ['dashboard'],    queryFn: () => api.getDashboard() });
@@ -430,13 +614,18 @@ export const useSubmitReviewScores = () => useAssetMutation(
     api.submitReviewScores(args.id, args.reviewer, args.scores, args.note)
 );
 export const useFinalApproveAsset = () => useAssetMutation(
-  (args: { id: string; admin: string; note?: string }) => api.finalApproveAsset(args.id, args.admin, args.note)
+  (args: { id: string; admin: string; note?: string; skipPayment?: boolean }) =>
+    api.finalApproveAsset(args.id, args.admin, args.note, { skipPayment: args.skipPayment }),
 );
 export const useRejectAsset = () => useAssetMutation(
   (args: { id: string; admin: string; reason: string }) => api.rejectAsset(args.id, args.admin, args.reason)
 );
 export const useResubmitAsset = () => useAssetMutation((id: string) => api.resubmitAsset(id));
 export const useCompletePayment = () => useAssetMutation((id: string) => api.completePayment(id));
+export const useSkipPayment = () => useAssetMutation(
+  (args: { id: string; admin: string; reason?: string }) =>
+    api.skipPayment(args.id, args.admin, args.reason),
+);
 export const useReleaseContent = () => useAssetMutation(
   (args: { id: string; price: number }) => api.releaseContent(args.id, args.price)
 );

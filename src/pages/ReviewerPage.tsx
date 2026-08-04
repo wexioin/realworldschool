@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { useContentAssets, useSubmitReviewScores } from '../api';
 import type { ContentAsset } from '../api/types';
-import { REVIEW_CRITERIA, REVIEW_PASS_MARK, ASSET_STATUS_META } from '../api/types';
+import { REVIEW_CRITERIA, REVIEW_PASS_MARK, ASSET_STATUS_META, CONTENT_KIND_META, hasPlanDocs } from '../api/types';
 import { PageHeader, StatusBadge, Loading } from '../components/ui';
 import { useToast } from '../components/Toast';
 import { useSession } from '../session';
@@ -129,6 +129,7 @@ function AssignmentCard({ asset: a, onStart }: { asset: ContentAsset; onStart: (
         <div>
           <div className="flex items-center gap-2 flex-wrap">
             <p className="font-semibold text-gray-900">{a.title}</p>
+            <StatusBadge label={CONTENT_KIND_META[a.kind].label} tone={CONTENT_KIND_META[a.kind].tone} />
             <StatusBadge label={`${a.category} · ${categoryLabel(a.category)}`} tone="gray" />
           </div>
           <p className="text-xs text-gray-500 mt-1">
@@ -152,9 +153,13 @@ function AssignmentCard({ asset: a, onStart }: { asset: ContentAsset; onStart: (
 
       <div className="flex items-center gap-2 flex-wrap mb-3">
         <ResourceLink href={a.studioProjectId ? `${STUDIO_BASE}/${a.studioProjectId}` : undefined} label="스튜디오" icon={ExternalLink} />
-        <ResourceLink href={a.planPptUrl} label="기획서(PPT)" icon={FileType2} />
-        <ResourceLink href={a.planDocUrl} label="기획서(Word)" icon={FileText} />
-        <ResourceLink href={a.guideUrl} label="운영 가이드" icon={BookOpenCheck} />
+        {hasPlanDocs(a) && (
+          <>
+            <ResourceLink href={a.planPptUrl} label="기획서(PPT)" icon={FileType2} />
+            <ResourceLink href={a.planDocUrl} label="기획서(Word)" icon={FileText} />
+            <ResourceLink href={a.guideUrl} label="운영 가이드" icon={BookOpenCheck} />
+          </>
+        )}
       </div>
 
       <div className="pt-3 border-t border-gray-100 space-y-2">

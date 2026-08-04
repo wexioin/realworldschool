@@ -7,9 +7,10 @@ import {
 import {
   useContentAssets, useMarkRevisionComplete, useSubmitPayoutInfo, usePayoutInfo,
 } from '../api';
-import type { ContentAsset, CreatorPayoutInfo } from '../api/types';
+import type { ContentAsset, CreatorPayoutInfo, AssetStatus } from '../api/types';
 import {
-  ASSET_STATUS_META, ASSET_STATUS_FLOW, CREATOR_STATUS_MESSAGE, REVIEW_CRITERIA,
+  ASSET_STATUS_META, ASSET_STATUS_FLOW, ASSET_STATUS_FLOW_PERSONAL,
+  CREATOR_STATUS_MESSAGE, REVIEW_CRITERIA, CONTENT_KIND_META, hasPlanDocs, needsPayment,
 } from '../api/types';
 import { PageHeader, StatusBadge, Loading } from '../components/ui';
 import { Modal } from '../components/Modal';
@@ -40,6 +41,7 @@ export default function MyContentsPage() {
     () => (assets ?? []).filter(a => a.creatorEmail === user.email),
     [assets, user.email],
   );
+  const showPayoutEntry = mine.some(a => a.kind === 'original');
 
   if (isLoading) return <Loading />;
 
@@ -53,14 +55,14 @@ export default function MyContentsPage() {
       <PageHeader
         title="내 콘텐츠 검수 현황"
         description="제출한 콘텐츠의 검수 단계와 해야 할 일을 확인할 수 있습니다."
-        right={
+        right={showPayoutEntry ? (
           <button
             onClick={() => setPayoutOpen(true)}
             className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
           >
             <CreditCard size={14} /> 지급 정보 {payout ? '수정' : '입력'}
           </button>
-        }
+        ) : undefined}
       />
 
       {mine.length === 0 ? (
@@ -108,7 +110,11 @@ function MyContentCard({ asset: a, busy, onRevisionComplete, onPayout }: {
         <div>
           <div className="flex items-center gap-2 flex-wrap">
             <p className="font-semibold text-gray-900">{a.title}</p>
-            <StatusBadge label={meta.label} tone={meta.tone} />
+            <StatusBadge label={CONTENT_KIND_META[a.kind].label} tone={CONTENT_KIND_META[a.kind].tone} />
+            <StatusBadge
+              label={a.status === 'paid' && a.paymentSkipped ? '출시 예정 (지급 없음)' : meta.label}
+              tone={meta.tone}
+            />
             <StatusBadge label={`${a.category} · ${categoryLabel(a.category)}`} tone="gray" />
           </div>
           <p className="text-xs text-gray-500 mt-1">
@@ -127,7 +133,7 @@ function MyContentCard({ asset: a, busy, onRevisionComplete, onPayout }: {
               <CheckSquare size={13} /> 수정 완료
             </button>
           )}
-          {a.status === 'approved' && (
+          {a.status === 'approved' && needsPayment(a) && (
             <button
               onClick={onPayout}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-amber-100 border border-amber-200 text-amber-700 rounded-lg hover:bg-amber-200/60 transition-colors"
@@ -146,7 +152,7 @@ function MyContentCard({ asset: a, busy, onRevisionComplete, onPayout }: {
         </div>
       </div>
 
-      <StatusStepper status={a.status} />
+      <StatusStepper asset={a} />
 
       <p className={clsx(
         'text-xs mt-3 px-3 py-2 rounded-lg border',
@@ -154,7 +160,11 @@ function MyContentCard({ asset: a, busy, onRevisionComplete, onPayout }: {
           : a.status === 'rejected' ? 'bg-red-50 border-red-100 text-red-700'
           : 'bg-gray-50 border-gray-100 text-gray-600'
       )}>
-        {CREATOR_STATUS_MESSAGE[a.status]}
+        {a.status === 'paid' && a.paymentSkipped
+          ? (a.kind === 'personal'
+            ? '검수가 완료되었습니다. 출시 후 실적에 따라 로열티가 정산됩니다.'
+            : '검수가 완료되었습니다. 지급 없이 출시를 기다리고 있습니다.')
+          : CREATOR_STATUS_MESSAGE[a.status]}
       </p>
 
       {needsRevision && a.revisionRequest && (
@@ -213,25 +223,31 @@ function MyContentCard({ asset: a, busy, onRevisionComplete, onPayout }: {
 
       <div className="flex items-center gap-2 flex-wrap mt-3">
         <MiniLink href={a.studioProjectId ? `${STUDIO_BASE}/${a.studioProjectId}` : undefined} label="스튜디오" icon={ExternalLink} />
-        <MiniLink href={a.planPptUrl} label="기획서(PPT)" icon={FileType2} />
-        <MiniLink href={a.planDocUrl} label="기획서(Word)" icon={FileText} />
-        <MiniLink href={a.guideUrl} label="운영 가이드" icon={BookOpenCheck} />
+        {hasPlanDocs(a) && (
+          <>
+            <MiniLink href={a.planPptUrl} label="기획서(PPT)" icon={FileType2} />
+            <MiniLink href={a.planDocUrl} label="기획서(Word)" icon={FileText} />
+            <MiniLink href={a.guideUrl} label="운영 가이드" icon={BookOpenCheck} />
+          </>
+        )}
       </div>
     </div>
   );
 }
 
-/** 정상 경로 8단계 스테퍼. 수정 요청·반려는 경로 밖이라 직전 단계까지만 채웁니다. */
-function StatusStepper({ status }: { status: ContentAsset['status'] }) {
-  const step = ASSET_STATUS_META[status].step;
-  const offPath = step < 0;
+/** 정상 경로 스테퍼. 개인은 지급 단계를 빼고, 수정 요청·반려는 경로 밖 뱃지로 표시합니다. */
+function StatusStepper({ asset }: { asset: ContentAsset }) {
+  const status = asset.status;
+  const flow: AssetStatus[] = asset.kind === 'personal' ? ASSET_STATUS_FLOW_PERSONAL : ASSET_STATUS_FLOW;
+  const metaStep = ASSET_STATUS_META[status].step;
+  const offPath = metaStep < 0;
   const reached = offPath
-    ? (status === 'rejected' ? ASSET_STATUS_META.final_approval_pending.step : ASSET_STATUS_META.second_review_pending.step)
-    : step;
+    ? flow.indexOf(status === 'rejected' ? 'final_approval_pending' : 'second_review_pending')
+    : Math.max(0, flow.indexOf(status));
 
   return (
     <div className="flex items-center gap-1 overflow-x-auto">
-      {ASSET_STATUS_FLOW.map((s, i) => {
+      {flow.map((s, i) => {
         const done = i < reached;
         const current = !offPath && i === reached;
         return (

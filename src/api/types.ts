@@ -100,8 +100,15 @@ export interface UserAccount {
   role: UserRole;
   /** 소속 — 로그인 화면 계정 목록과 프로필에 표시 */
   affiliation?: string;
+  phone?: string;
   status: 'active' | 'inactive';
 }
+
+/** 어드민 가입 허용 이메일 도메인 */
+export const ADMIN_EMAIL_DOMAIN = 'e-redpoint.com';
+
+export const isAdminEmail = (email: string) =>
+  email.trim().toLowerCase().endsWith(`@${ADMIN_EMAIL_DOMAIN}`);
 
 export type AssetStatus =
   | 'first_review_pending'        // 1차 검수 대기 — AI 검수 미실행
@@ -132,14 +139,21 @@ export const ASSET_STATUS_META: Record<AssetStatus, { label: string; tone: Badge
   approved:                    { label: '검수완료(통과)',       tone: 'blue',   step: 4 },
   rejected:                    { label: '반려',                 tone: 'red',    step: -1 },
   payment_pending:             { label: '지급예정',             tone: 'amber',  step: 5 },
-  paid:                        { label: '지급완료',             tone: 'blue',   step: 6 },
+  /** 지급 완료·지급 스킵·개인(로열티) 모두 출시 대기 단계로 표시 */
+  paid:                        { label: '출시 예정',            tone: 'blue',   step: 6 },
   released:                    { label: '출시',                 tone: 'green',  step: 7 },
 };
 
-/** 스테퍼에 노출되는 정상 경로 (수정 요청·반려 제외) */
+/** 스테퍼에 노출되는 정상 경로 (수정 요청·반려 제외) — 오리지널(지급 포함) */
 export const ASSET_STATUS_FLOW: AssetStatus[] = [
   'first_review_pending', 'reviewer_assignment_pending', 'second_review_pending',
   'final_approval_pending', 'approved', 'payment_pending', 'paid', 'released',
+];
+
+/** 개인 콘텐츠 스테퍼 — 지급 단계(검수완료·지급예정) 없음 */
+export const ASSET_STATUS_FLOW_PERSONAL: AssetStatus[] = [
+  'first_review_pending', 'reviewer_assignment_pending', 'second_review_pending',
+  'final_approval_pending', 'paid', 'released',
 ];
 
 /** "검수 진행중"으로 집계하는 상태 — 사이드바 배지·대시보드 KPI 공통 기준 */
@@ -158,9 +172,36 @@ export const CREATOR_STATUS_MESSAGE: Record<AssetStatus, string> = {
   approved:                    '크리에이터 페이지에서 요청된 개인정보를 입력해 주시기 바랍니다.',
   rejected:                    '아쉽게도 반려된 콘텐츠입니다. 사유를 확인해 주세요.',
   payment_pending:             '검수를 완료하여 지급이 예정인 콘텐츠입니다.',
-  paid:                        '지급이 완료된 콘텐츠입니다.',
+  paid:                        '출시를 기다리고 있는 콘텐츠입니다.',
   released:                    '출시된 콘텐츠입니다.',
 };
+
+/**
+ * 콘텐츠 구분
+ * - original: 회사가 요청·지정해 개발. 기본적으로 지급 단계 있음 (직원 월급건은 스킵 가능)
+ * - personal: 개인 제출. 지급 단계 없음(실적 로열티). 기획서·운영가이드 없음
+ */
+export type ContentKind = 'original' | 'personal';
+
+export const CONTENT_KIND_META: Record<ContentKind, { label: string; tone: BadgeTone; desc: string }> = {
+  original: {
+    label: '오리지널',
+    tone: 'violet',
+    desc: '회사 요청으로 크리에이터를 지정해 개발. 기본은 지급 단계 포함',
+  },
+  personal: {
+    label: '개인 콘텐츠',
+    tone: 'blue',
+    desc: '개인 제출. 지급 없음(실적 로열티). 기획서·운영가이드 없음',
+  },
+};
+
+/** 지급 단계가 필요한 콘텐츠인지 (개인이거나 이미 스킵된 건 제외) */
+export const needsPayment = (a: { kind: ContentKind; paymentSkipped?: boolean }) =>
+  a.kind === 'original' && !a.paymentSkipped;
+
+/** 기획서·운영가이드를 쓰는 콘텐츠인지 */
+export const hasPlanDocs = (a: { kind: ContentKind }) => a.kind === 'original';
 
 export type AssetGrade = '초등 저학년' | '초등 고학년' | '중학생' | '고등학생' | '전학년';
 export type AssetEnvType = 'indoor' | 'outdoor' | 'mixed';       // 실내형/실외형/혼합형
@@ -234,6 +275,21 @@ export const CRITERION_COMMENT_OPTIONS: Record<CriterionKey, { id: string; label
 
 // ── 검수자 (2차 검수를 수행하는 외부 전문가) ──
 export type AdvisorType = 'professor' | 'teacher' | 'researcher' | 'industry';
+
+export const ADVISOR_TYPE_LABEL: Record<AdvisorType, string> = {
+  professor: '교수',
+  teacher: '교사',
+  researcher: '연구자',
+  industry: '현장·산업',
+};
+
+export const ADVISOR_CATEGORY_OPTIONS = [
+  { value: 'A', label: 'A. 교과 연계형' },
+  { value: 'B', label: 'B. 역량 중심형' },
+  { value: 'C', label: 'C. 창의·예술형' },
+  { value: 'D', label: 'D. 특수목적형' },
+] as const;
+
 export interface Advisor {
   id: string;
   name: string;
@@ -243,6 +299,7 @@ export interface Advisor {
   type: AdvisorType;
   /** 담당 카테고리 대분류 — 배정 시 추천 순위에 사용 */
   categories: string[];
+  phone?: string;
   status: 'active' | 'inactive';
 }
 
@@ -276,6 +333,95 @@ export interface CreatorPayoutInfo {
   bankAccount: string;         // 입금 계좌
 }
 
+/**
+ * 크리에이터 가입 시 주 신원 연결 방식.
+ * - school: School.org 연동 (프로필 정본 — 이름·학교·전화). 권장
+ * - studio: Studio 연동 (콘텐츠·티처스 정본). 프로필은 추가 입력 필요
+ * - email: 이메일 직접 가입 후 양쪽 계정을 필드로 연결
+ */
+export type CreatorIdentitySource = 'school' | 'studio' | 'email';
+
+export const CREATOR_IDENTITY_META: Record<CreatorIdentitySource, { label: string; recommend?: boolean; desc: string }> = {
+  school: {
+    label: 'School.org 계정 연동',
+    recommend: true,
+    desc: '이름·학교·전화 등 프로필이 School.org에 있어 상세정보를 바로 가져올 수 있습니다. Studio 이메일도 함께 연결해 콘텐츠 자동 유입에 대비합니다.',
+  },
+  studio: {
+    label: 'Studio 계정 연동',
+    desc: '티처스·게임 ID와 맞추기 쉽지만 Studio는 이메일만 보유합니다. 이름·학교·전화는 직접 입력해야 합니다.',
+  },
+  email: {
+    label: '이메일로 직접 가입',
+    desc: '연동 전에 쓰는 임시 경로입니다. School.org·Studio 이메일을 각각 적어 두면 이후 자동 매칭에 사용합니다.',
+  },
+};
+
+/** 크리에이터 유형 — 회원가입에서 선택 가능 (회사 오리지널 제외) */
+export type CreatorSignupType =
+  | 'creator_teacher'
+  | 'creator_student'
+  | 'creator_institution'
+  | 'creator_partners';
+
+export const CREATOR_SIGNUP_TYPE_LABEL: Record<CreatorSignupType, string> = {
+  creator_teacher: '교사',
+  creator_student: '학생',
+  creator_institution: '기관',
+  creator_partners: '파트너스',
+};
+
+/** 회원가입 요청 — 역할별 필드 */
+export type SignupRequest =
+  | {
+      role: 'admin';
+      email: string;
+      password: string;
+      name: string;
+      affiliation: string;
+      phone: string;
+    }
+  | {
+      role: 'reviewer';
+      email: string;
+      password: string;
+      name: string;
+      affiliation: string;
+      phone: string;
+      specialty: string;
+      type: AdvisorType;
+      categories: string[];
+    }
+  | {
+      role: 'creator';
+      email: string;
+      password: string;
+      name: string;
+      phone: string;
+      type: CreatorSignupType;
+      institution: string;
+      identitySource: CreatorIdentitySource;
+      /** Studio 로그인 이메일 — 콘텐츠·티처스 매칭용 */
+      studioEmail: string;
+      /** School.org 로그인 이메일 — 프로필·신청 매칭용 (login email과 같을 수 있음) */
+      schoolOrgEmail: string;
+      /** 지급·정산용 — 가입 시 수집해 승인 후 지급 대기를 줄입니다 */
+      payout: CreatorPayoutInfo;
+    };
+
+export type SignupFailure =
+  | 'email_taken'
+  | 'invalid_admin_domain'
+  | 'weak_password'
+  | 'invalid_payload';
+
+export class SignupError extends Error {
+  constructor(public reason: SignupFailure) {
+    super(reason);
+    this.name = 'SignupError';
+  }
+}
+
 export interface ContentAsset {
   id: string;
   code: string;
@@ -291,13 +437,15 @@ export interface ContentAsset {
   category: string;              // 카테고리 코드 (예: 'A-03')
   price: number;
   status: AssetStatus;
+  /** 오리지널 | 개인 콘텐츠 — 지급·문서 노출을 가름 */
+  kind: ContentKind;
   /** 상태 변경 시각 — 목록 정렬·상세 헤더에 사용 */
   statusChangedAt?: string;
-  // 검수용 문서 링크
+  // 검수용 문서 링크 (개인 콘텐츠는 기획서·운영가이드 없음)
   studioProjectId?: string;      // 스튜디오 프로젝트
-  planPptUrl?: string;           // 기획서 (PPT)
-  planDocUrl?: string;           // 기획서 (Word)
-  guideUrl?: string;             // 운영 가이드
+  planPptUrl?: string;           // 기획서 (PPT) — 오리지널만
+  planDocUrl?: string;           // 기획서 (Word) — 오리지널만
+  guideUrl?: string;             // 운영 가이드 — 오리지널만
   // ── 검수 이력 (DFD의 4개 엔티티에 대응) ──
   /** 1차 검수 내용 */
   aiReview?: { date: string; passed: boolean; issues: string[] };
@@ -319,7 +467,14 @@ export interface ContentAsset {
   rejection?: { admin: string; date: string; reason: string };
   /** 수정 요청 시 생성 — 수정 현황 모달에서 사용 */
   revisionRequest?: RevisionRequest;
-  paymentCompletedDate?: string;  // 지급 완료일
+  /**
+   * 지급을 건너뛴 경우 true.
+   * - 개인 콘텐츠: 최종 승인 시 자동
+   * - 오리지널: 월급 직원 등 운영자가 스킵한 경우
+   * 상태로는 `paid`(출시 예정)로 두어 출시 흐름은 그대로 탑니다.
+   */
+  paymentSkipped?: boolean;
+  paymentCompletedDate?: string;  // 지급 완료일 (스킵 시 비움)
   releasedDate?: string;          // 출시일
   releasedUrl?: string;           // 출시된 콘텐츠 링크
   /** mock 전용: AI 검수 실행 시 검출될 이슈 (실연동 시 AI 서비스 응답으로 대체) */
@@ -376,12 +531,19 @@ export interface Creator {
   type: ContentOwnerType;
   institution?: string;
   email: string;
+  phone?: string;
   joinedDate: string;
   status: CreatorStatus;
   contentCount: number;
   totalRevenue: number;       // 누적 판매액
   pendingSettlement: number;  // 정산 대기액
   lastActiveDate: string;
+  /** 가입 시 주 신원 연결 방식 */
+  identitySource?: CreatorIdentitySource;
+  /** Studio 계정 이메일 — 콘텐츠 자동 유입 매칭 키 */
+  studioEmail?: string;
+  /** School.org 계정 이메일 — 프로필·신청 매칭 키 */
+  schoolOrgEmail?: string;
 }
 
 // ── 회원 ──
@@ -570,8 +732,14 @@ export interface ErpApi {
   // ── 인증 ──
   /** 로그인. 실패 시 LoginError를 던집니다. */
   login(email: string, password: string): Promise<UserAccount>;
+  /** 회원가입. 실패 시 SignupError를 던집니다. */
+  signup(req: SignupRequest): Promise<UserAccount>;
   /** 로그인 화면의 데모 계정 목록 (실연동 시 제거) */
   listAccounts(): Promise<UserAccount[]>;
+  /** School.org 연동 mock — 실연동 시 OAuth 프로필로 대체 */
+  previewSchoolProfile(email: string): Promise<{ name: string; institution: string; phone: string } | null>;
+  /** Studio 연동 mock — 실연동 시 OAuth로 대체 (이메일이 주 정보) */
+  previewStudioAccount(email: string): Promise<{ email: string } | null>;
 
   getDashboard(): Promise<DashboardData>;
   getBadgeCounts(): Promise<BadgeCounts>;
@@ -618,14 +786,26 @@ export interface ErpApi {
   sendAdvisorReminder(id: string, emailSubject: string, emailBody: string): Promise<void>;
   /** ④⑤ 루브릭 채점 제출. 80점 이상 → 최종 승인 대기, 미만 → 2차 수정 요청(마감 +7일) */
   submitReviewScores(id: string, reviewer: string, scores: CriterionScore[], note?: string): Promise<{ total: number; passed: boolean }>;
-  /** ⑧⑨ 최종 승인. 지급정보 완비 → 지급예정, 미완비 → 검수완료(통과) */
-  finalApproveAsset(id: string, admin: string, note?: string): Promise<{ status: AssetStatus }>;
+  /**
+   * ⑧⑨ 최종 승인.
+   * - 개인 콘텐츠 / skipPayment → 지급 없이 출시 예정(`paid`)
+   * - 오리지널 + 지급정보 완비 → 지급예정
+   * - 오리지널 + 지급정보 미완비 → 검수완료(통과)
+   */
+  finalApproveAsset(
+    id: string,
+    admin: string,
+    note?: string,
+    opts?: { skipPayment?: boolean },
+  ): Promise<{ status: AssetStatus }>;
   /** ⑩ 반려 */
   rejectAsset(id: string, admin: string, reason: string): Promise<void>;
   /** 크리에이터 재제출 → 1차 검수부터 재시작 */
   resubmitAsset(id: string): Promise<void>;
   /** ⑫ 지급 처리 → 지급완료 (지급일 = 당일) */
   completePayment(id: string): Promise<void>;
+  /** 오리지널 지급 스킵 (월급 직원 등) → 출시 예정(`paid`) */
+  skipPayment(id: string, admin: string, reason?: string): Promise<void>;
   /** ⑬ 출시 (가격 확정) → 출시 */
   releaseContent(id: string, price: number): Promise<void>;
   /** 수정 마감 경과 시 크리에이터에게 리마인드 이메일 발송 */

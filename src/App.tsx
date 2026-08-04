@@ -32,6 +32,7 @@ const SettingsPage = React.lazy(() => import('./pages/SettingsPage'));
 const ReviewerPage = React.lazy(() => import('./pages/ReviewerPage'));
 const MyContentsPage = React.lazy(() => import('./pages/MyContentsPage'));
 const LoginPage = React.lazy(() => import('./pages/LoginPage'));
+const SignupPage = React.lazy(() => import('./pages/SignupPage'));
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
@@ -48,7 +49,11 @@ function AppRoutes() {
   if (!user) {
     return (
       <Suspense fallback={<Loading />}>
-        <LoginPage />
+        <Routes>
+          <Route path="/signup" element={<SignupPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="*" element={<LoginPage />} />
+        </Routes>
       </Suspense>
     );
   }

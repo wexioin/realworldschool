@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>실데이터 연동 브리핑 — Admin ERP × Studio × School.org</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink: #1a2332;
+      --ink-soft: #3d4a5c;
+      --muted: #6b7a8d;
+      --line: #d8dee6;
+      --bg: #f3f5f7;
+      --paper: #ffffff;
+      --accent: #0d6e6e;
+      --accent-soft: #e6f3f3;
+      --warn: #9a5b12;
+      --warn-soft: #faf0e4;
+      --danger: #9b2c2c;
+      --danger-soft: #f8e8e8;
+      --ok: #1f6b3a;
+      --ok-soft: #e8f5ec;
+      --sidebar: #121a24;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: "IBM Plex Sans KR", "IBM Plex Sans", sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+      line-height: 1.55;
+    }
+    .shell { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+    nav {
+      position: sticky; top: 0; height: 100vh;
+      background: var(--sidebar); color: #c8d0da;
+      padding: 28px 18px; overflow-y: auto;
+    }
+    nav .brand {
+      color: #fff; font-weight: 700; font-size: 14px; letter-spacing: -0.02em;
+      margin-bottom: 4px;
+    }
+    nav .sub { font-size: 11px; color: #7a8696; margin-bottom: 28px; line-height: 1.4; }
+    nav a {
+      display: block; color: #a8b4c2; text-decoration: none;
+      font-size: 13px; padding: 8px 10px; border-radius: 6px; margin-bottom: 2px;
+    }
+    nav a:hover, nav a.active { background: #1e2a38; color: #fff; }
+    nav .q-count {
+      display: inline-block; margin-left: 6px;
+      font-size: 10px; background: #2a3a4c; color: #9eb0c4;
+      padding: 1px 6px; border-radius: 99px;
+    }
+    main { padding: 40px 48px 80px; max-width: 920px; }
+    .hero {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 36px 40px;
+      margin-bottom: 28px;
+    }
+    .eyebrow {
+      font-size: 12px; font-weight: 600; color: var(--accent);
+      letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 10px;
+    }
+    h1 {
+      font-size: 28px; font-weight: 700; letter-spacing: -0.03em;
+      margin: 0 0 12px; line-height: 1.25;
+    }
+    .lede { color: var(--ink-soft); font-size: 15px; max-width: 62ch; margin: 0; }
+    .stats {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+      margin-top: 28px;
+    }
+    .stat {
+      background: var(--bg); border-radius: 10px; padding: 14px 16px;
+    }
+    .stat b { display: block; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+    .stat span { font-size: 12px; color: var(--muted); }
+    .stat.warn b { color: var(--warn); }
+
+    section {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 28px 32px;
+      margin-bottom: 18px;
+    }
+    h2 {
+      font-size: 18px; font-weight: 700; margin: 0 0 6px;
+      letter-spacing: -0.02em;
+    }
+    h3 {
+      font-size: 14px; font-weight: 600; margin: 22px 0 10px;
+      color: var(--ink-soft);
+    }
+    .sec-desc { color: var(--muted); font-size: 13px; margin: 0 0 18px; }
+    table {
+      width: 100%; border-collapse: collapse; font-size: 13px;
+    }
+    th, td {
+      text-align: left; padding: 10px 12px;
+      border-bottom: 1px solid var(--line); vertical-align: top;
+    }
+    th {
+      font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
+      color: var(--muted); font-weight: 600; background: var(--bg);
+    }
+    th:first-child, td:first-child { border-radius: 0; }
+    .tag {
+      display: inline-block; font-size: 11px; font-weight: 600;
+      padding: 2px 8px; border-radius: 99px; white-space:nowrap;
+    }
+    .tag.ok { background: var(--ok-soft); color: var(--ok); }
+    .tag.wait { background: var(--warn-soft); color: var(--warn); }
+    .tag.info { background: var(--accent-soft); color: var(--accent); }
+    .tag.bad { background: var(--danger-soft); color: var(--danger); }
+
+    .callout {
+      border-radius: 10px; padding: 14px 16px; font-size: 13.5px;
+      margin: 14px 0;
+    }
+    .callout.prefer { background: var(--accent-soft); border-left: 3px solid var(--accent); }
+    .callout.warn { background: var(--warn-soft); border-left: 3px solid var(--warn); }
+    .callout strong { display: block; margin-bottom: 4px; font-size: 12px; }
+
+    .flow {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+      margin: 16px 0;
+    }
+    .flow .node {
+      background: var(--bg); border: 1px solid var(--line);
+      border-radius: 8px; padding: 10px 12px; min-width: 110px;
+      font-size: 12px; font-weight: 600;
+    }
+    .flow .node small { display: block; font-weight: 400; color: var(--muted); margin-top: 2px; }
+    .flow .node.hl { background: var(--accent-soft); border-color: #b7d9d9; color: var(--accent); }
+    .flow .node.mock { outline: 2px dashed #9eb0c4; outline-offset: -2px; }
+    .flow .arr { color: var(--muted); font-size: 16px; }
+
+    .sysmap {
+      display: grid; grid-template-columns: 1fr 48px 1fr 48px 1fr;
+      gap: 0; align-items: center; margin: 20px 0;
+    }
+    .sysbox {
+      border: 1px solid var(--line); border-radius: 12px; padding: 16px;
+      background: var(--bg); text-align: center;
+    }
+    .sysbox.center {
+      background: var(--accent-soft); border-color: #b7d9d9;
+    }
+    .sysbox h4 { margin: 0 0 4px; font-size: 14px; }
+    .sysbox p { margin: 0; font-size: 11px; color: var(--muted); }
+    .sysarr {
+      text-align: center; font-size: 11px; color: var(--accent); font-weight: 600;
+      line-height: 1.3;
+    }
+    .sysarr span { display: block; font-size: 18px; color: var(--muted); font-weight: 400; }
+
+    .two {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 14px 0;
+    }
+    .card {
+      border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px;
+      background: var(--paper);
+    }
+    .card h4 { margin: 0 0 8px; font-size: 13px; }
+    .card p { margin: 0; font-size: 12.5px; color: var(--ink-soft); }
+
+    .q {
+      display: grid; grid-template-columns: 40px 1fr 180px; gap: 0;
+      border-top: 1px solid var(--line); padding: 12px 0; font-size: 13px;
+    }
+    .q:first-of-type { border-top: none; }
+    .q .num {
+      font-weight: 700; color: var(--accent); font-size: 12px; padding-top: 2px;
+    }
+    .q .why { font-size: 12px; color: var(--muted); }
+
+    .checklist {
+      list-style: none; padding: 0; margin: 0;
+    }
+    .checklist li {
+      display: flex; gap: 10px; align-items: flex-start;
+      padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 13.5px;
+    }
+    .checklist .box {
+      width: 16px; height: 16px; border: 1.5px solid var(--muted);
+      border-radius: 3px; flex-shrink: 0; margin-top: 2px;
+    }
+
+    .footer-note {
+      font-size: 12px; color: var(--muted); margin-top: 8px;
+    }
+
+    @media (max-width: 900px) {
+      .shell { grid-template-columns: 1fr; }
+      nav { position: relative; height: auto; }
+      main { padding: 24px 18px 60px; }
+      .stats, .two, .sysmap { grid-template-columns: 1fr; }
+      .sysarr { transform: rotate(90deg); padding: 8px 0; }
+      .q { grid-template-columns: 36px 1fr; }
+      .q .why { grid-column: 2; }
+    }
+    @media print {
+      nav { display: none; }
+      .shell { grid-template-columns: 1fr; }
+      main { max-width: none; padding: 0; }
+      section, .hero { break-inside: avoid; box-shadow: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <nav>
+      <div class="brand">연동 브리핑</div>
+      <div class="sub">Admin ERP × Studio × School.org<br />대표 미팅용 자료</div>
+      <a href="#agenda">아젠다</a>
+      <a href="#built">0. 지금까지 만든 것</a>
+      <a href="#map">1. 시스템 지도</a>
+      <a href="#content">2. 콘텐츠 등록 <span class="q-count">Q1–7</span></a>
+      <a href="#sales">3. 판매 실적 <span class="q-count">Q8–10</span></a>
+      <a href="#release">4. 출시 <span class="q-count">Q11–14</span></a>
+      <a href="#target">5. 목표 플로우</a>
+      <a href="#signup">6. 회원가입·계정 연결</a>
+      <a href="#ask">7. 미팅 체크리스트</a>
+    </nav>
+
+    <main>
+      <div class="hero" id="agenda">
+        <div class="eyebrow">Realworld School · Admin ERP</div>
+        <h1>실데이터 연동<br />현황 · 제안 · 확인 요청</h1>
+        <p class="lede">
+          검수·지급·출시 파이프라인의 UI/상태 전이는 Mock으로 틀을 잡았습니다.
+          이제 실제 콘텐츠·회원·판매·출시 데이터를 외부 시스템에서 끌어와야 합니다.
+          이 자료는 <b>우리가 어디까지 만들었는지</b>와 <b>대표님께 확인이 필요한 것</b>을 정리한 미팅용 브리핑입니다.
+        </p>
+        <div class="stats">
+          <div class="stat warn"><b>Mock</b><span>현재 데이터 소스</span></div>
+          <div class="stat"><b>3</b><span>외부 시스템</span></div>
+          <div class="stat"><b>11</b><span>검수 상태 모델</span></div>
+          <div class="stat"><b>14</b><span>확인 질문</span></div>
+        </div>
+      </div>
+
+      <!-- 0 -->
+      <section id="built">
+        <h2>0. 지금까지 만든 것 (Admin ERP)</h2>
+        <p class="sec-desc">페이지·역할·파이프라인은 준비됨. 데이터만 Mock → 실연동으로 바꾸면 됩니다.</p>
+        <table>
+          <thead>
+            <tr><th style="width:22%">영역</th><th style="width:16%">상태</th><th>요약</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>검수 파이프라인</td>
+              <td><span class="tag ok">완료 · Mock</span></td>
+              <td>1차 AI → 2차 배정·채점 → 최종 승인 → 지급 → 출시 (11개 상태)</td>
+            </tr>
+            <tr>
+              <td>역할 화면</td>
+              <td><span class="tag ok">완료 · Mock</span></td>
+              <td>어드민 / 검수자 / 크리에이터 로그인·메뉴·액션 분기</td>
+            </tr>
+            <tr>
+              <td>콘텐츠 구분</td>
+              <td><span class="tag ok">완료 · Mock</span></td>
+              <td>오리지널(지급 ± 스킵) · 개인(지급 없음, 기획서·운영가이드 비노출)</td>
+            </tr>
+            <tr>
+              <td>실데이터 연동</td>
+              <td><span class="tag wait">대기</span></td>
+              <td>Studio · School.org · School-admin 모두 Settings에 “Mock (연동 대기)”</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- 1 map -->
+      <section id="map">
+        <h2>1. 시스템 지도 — 무엇이 어디로</h2>
+        <p class="sec-desc">화살표 = 데이터가 흘러가야 하는 방향. 지금은 전부 끊겨 있습니다.</p>
+
+        <div class="sysmap">
+          <div class="sysbox">
+            <h4>리얼월드 스튜디오</h4>
+            <p>studio.realworld.to<br />콘텐츠 제작 · 티처스 구독</p>
+          </div>
+          <div class="sysarr"><span>→</span>① 유입</div>
+          <div class="sysbox center">
+            <h4>Admin ERP</h4>
+            <p>본 어드민<br />검수 · 지급 · 출시 트리거</p>
+          </div>
+          <div class="sysarr"><span>→</span>③ 출시</div>
+          <div class="sysbox">
+            <h4>realworld-school.org</h4>
+            <p>회원 · 카탈로그<br />판매 · 공개 출시</p>
+          </div>
+        </div>
+
+        <table>
+          <thead><tr><th>축</th><th>방향</th><th>목적</th><th>상태</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><b>① 콘텐츠 등록</b></td>
+              <td>Studio → Admin<br /><span style="color:var(--muted);font-size:12px">(+ School.org 프로필/신청)</span></td>
+              <td>티처스 구독 회원·콘텐츠를 콘텐츠자산에 자동 적재</td>
+              <td><span class="tag wait">미연동</span></td>
+            </tr>
+            <tr>
+              <td><b>② 판매 실적</b></td>
+              <td>School.org → Admin<br /><span style="color:var(--muted);font-size:12px">(AX팀 ERP 참고)</span></td>
+              <td>판매·로열티 집계용 실적 데이터</td>
+              <td><span class="tag wait">미연동</span></td>
+            </tr>
+            <tr>
+              <td><b>③ 출시</b></td>
+              <td>Admin → School.org</td>
+              <td>Admin 「출시」버튼이 School 카탈로그에 실제 반영</td>
+              <td><span class="tag wait">미연동</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- 2 content -->
+      <section id="content">
+        <h2>2. 콘텐츠 등록 — Studio → Admin</h2>
+        <p class="sec-desc">수동 등록을 없애고, 스튜디오에서 제작 중인 콘텐츠가 Admin 검수 파이프라인에 들어오게 하려는 단계입니다.</p>
+
+        <div class="callout prefer">
+          <strong>우리가 밀고 싶은 방향</strong>
+          어드민에서 콘텐츠를 일일이 등록하지 않습니다.
+          리얼월드 스튜디오의 <b>티처스 요금제</b>를 구독한 회원과 그 콘텐츠가 웹훅(또는 동등한 API)으로
+          Admin 「콘텐츠 자산」에 자동으로 뜨게 하고 싶습니다.
+          다만 Studio 회원가입은 <b>이메일만</b> 받기 때문에 이름·학교·전화 등 상세정보가 없습니다.
+          그래서 <b>realworld-school.org</b>에서 상세정보를 기입하고, Studio에서 받은 <b>게임 ID</b>로 콘텐츠를 신청하는 방안을 선호합니다.
+        </div>
+
+        <div class="two">
+          <div class="card">
+            <h4>A. Studio 직연동 (웹훅)</h4>
+            <p>티처스 구독 회원 + 콘텐츠 → Admin 콘텐츠자산 자동 생성.</p>
+            <p style="margin-top:8px"><span class="tag wait">이슈</span> Studio에는 이름·학교·전화 없음</p>
+          </div>
+          <div class="card">
+            <h4>B. School.org 신청 (선호)</h4>
+            <p>School.org에 상세정보 기입 + 게임 ID로 콘텐츠 신청 → Admin/검수 연결.</p>
+            <p style="margin-top:8px"><span class="tag bad">이슈</span> “이미 신청된 게임”으로 신청이 막힘</p>
+          </div>
+        </div>
+
+        <div class="callout warn">
+          <strong>추가 확인 요청</strong>
+          realworld-school.org에서 수동으로 콘텐츠 신청을 하지 않아도,
+          스튜디오에서 개발 중인 콘텐츠가 School.org(및 Admin)와 <b>자동으로 연동되는 방법</b>이 있는지 확인해 주세요.
+          또한 오리지널/개인 구분 기준, 오리지널 신청·배정 방식, 기획서·운영가이드 업로드 경로에 대한 업무 지식이 부족하니
+          이 부분도 elaborate 부탁드립니다.
+        </div>
+
+        <h3>확인 질문 Q1–Q7</h3>
+        <div class="q"><div class="num">Q1</div><div>Studio → Admin 자동 유입(웹훅/API)이 가능한가요? 이벤트 종류·페이로드 스펙·담당자는?</div><div class="why">파이프라인 시작점</div></div>
+        <div class="q"><div class="num">Q2</div><div>티처스 요금제 구독자·콘텐츠만 걸러내는 기준(플랜 ID, 플래그 등)은 무엇인가요?</div><div class="why">유입 범위 확정</div></div>
+        <div class="q"><div class="num">Q3</div><div>School.org 수동 신청 없이, Studio 개발 콘텐츠가 School/Admin에 자동 연동되는 경로가 있나요?</div><div class="why">중복·수동 신청 제거</div></div>
+        <div class="q"><div class="num">Q4</div><div>School.org에서 게임 ID로 신청 시 “이미 신청된 게임”이 뜨는 원인·의도된 동작인가요? 우회/정상 플로우는?</div><div class="why">선호 플로우 B 가능 여부</div></div>
+        <div class="q"><div class="num">Q5</div><div>오리지널 vs 개인 콘텐츠를 시스템에서 어떻게 구분할 계획인가요? (플래그 / 신청 채널 / 계약 유형)</div><div class="why">지급·문서 로직이 kind에 종속</div></div>
+        <div class="q"><div class="num">Q6</div><div>오리지널은 어떻게 신청·배정받나요? (회사 요청 → 크리에이터 지정 → 제작 시작의 실제 업무 플로우)</div><div class="why">Admin UX·상태 설계</div></div>
+        <div class="q"><div class="num">Q7</div><div>오리지널 기획서·운영가이드는 어디에, 누가, 어떻게 올리나요? (Drive 수동? Studio? School? Admin 업로드?)</div><div class="why">문서 링크 연동</div></div>
+      </section>
+
+      <!-- 3 sales -->
+      <section id="sales">
+        <h2>3. 판매 실적 — School.org → Admin</h2>
+        <p class="sec-desc">판매 실적은 realworld-school.org에서 가져오면 됩니다. AX팀이 개발 중인 ERP에 이미 연동된 것으로 보여, 그쪽에 먼저 물어보는 것이 효율적입니다.</p>
+
+        <div class="flow">
+          <div class="node">School.org<small>구매·매출 발생</small></div>
+          <div class="arr">→</div>
+          <div class="node">AX팀 ERP<small>기존 연동 참고</small></div>
+          <div class="arr">→</div>
+          <div class="node hl mock">Admin ERP<small>실적·로열티 화면</small></div>
+        </div>
+
+        <h3>확인 질문 Q8–Q10</h3>
+        <div class="q"><div class="num">Q8</div><div>판매 실적 API 엔드포인트·인증 방식·필드(콘텐츠 ID, 금액, 일자, 채널 등)는?</div><div class="why">AX팀 / School</div></div>
+        <div class="q"><div class="num">Q9</div><div>콘텐츠 식별자는 Studio game id / School content code 중 무엇을 쓰나요? Admin과의 매핑 키는?</div><div class="why">AX팀</div></div>
+        <div class="q"><div class="num">Q10</div><div>동기화는 실시간 웹훅인가요, 일 배치인가요? 정산·로열티 집계 기준일은?</div><div class="why">AX팀 / 대표</div></div>
+      </section>
+
+      <!-- 4 release -->
+      <section id="release">
+        <h2>4. 출시 — Admin → School.org</h2>
+        <p class="sec-desc">Admin의 「출시」버튼을 누르면 realworld-school.org에 실제로 공개되어야 합니다. 지금 School.org에서 출시를 어떻게 처리하는지 알아야 Admin 구현 방식이 정해집니다.</p>
+
+        <div class="flow">
+          <div class="node hl mock">Admin<small>출시 버튼 · 가격 입력</small></div>
+          <div class="arr">→</div>
+          <div class="node">??? <small>현재 School 출시 절차</small></div>
+          <div class="arr">→</div>
+          <div class="node">School.org<small>카탈로그 공개</small></div>
+        </div>
+
+        <h3>확인 질문 Q11–Q14</h3>
+        <div class="q"><div class="num">Q11</div><div>현재 School.org 출시 절차는 무엇인가요? (어드민 UI / API / 수동 DB / 기타)</div><div class="why">구현 방식 결정</div></div>
+        <div class="q"><div class="num">Q12</div><div>출시 API가 있다면 요청 필드(가격, 카테고리, 썸네일, 설명, game id 등)는?</div><div class="why">ReleaseModal 연동</div></div>
+        <div class="q"><div class="num">Q13</div><div>출시 후 공개 URL·상태를 Admin이 콜백/조회로 받을 수 있나요?</div><div class="why">released 상태·링크</div></div>
+        <div class="q"><div class="num">Q14</div><div>출시 권한·이중 확인 등 운영 정책이 있나요?</div><div class="why">실수 출시 방지</div></div>
+      </section>
+
+      <!-- 5 target -->
+      <section id="target">
+        <h2>5. 제안하는 목표 플로우 (논의용)</h2>
+        <p class="sec-desc">점선 박스는 이미 Admin Mock으로 구현된 구간입니다. 앞·뒤를 이번에 잇습니다.</p>
+
+        <div class="flow">
+          <div class="node">Studio 제작<small>티처스 구독</small></div>
+          <div class="arr">→</div>
+          <div class="node">매칭<small>School 신청/자동연동</small></div>
+          <div class="arr">→</div>
+          <div class="node hl mock">Admin 검수<small>11상태 파이프라인</small></div>
+          <div class="arr">→</div>
+          <div class="node hl mock">지급<small>오리지널만 ±스킵</small></div>
+          <div class="arr">→</div>
+          <div class="node hl mock">Admin 출시<small>버튼</small></div>
+          <div class="arr">→</div>
+          <div class="node">School 노출<small>카탈로그</small></div>
+          <div class="arr">→</div>
+          <div class="node">실적 회수<small>→ Admin</small></div>
+        </div>
+
+        <div class="two">
+          <div class="card">
+            <h4>개인 콘텐츠</h4>
+            <p>지급 단계 없음 → 출시 후 실적 로열티. 기획서·운영가이드 없음. Studio/신청 유입 시 <b>kind=personal</b>로 들어와야 함.</p>
+          </div>
+          <div class="card">
+            <h4>오리지널</h4>
+            <p>회사 요청·지정 제작. 기본 지급 포함(월급 직원은 스킵). 기획서·운영가이드 필요 — <b>업로드 경로를 아직 모름</b>.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 6 signup -->
+      <section id="signup">
+        <h2>6. 회원가입 · 계정 연결 (Admin에 구현됨)</h2>
+        <p class="sec-desc">역할별 가입 화면을 만들었고, 크리에이터 연동 방식은 아래 권장안을 기본값으로 두었습니다.</p>
+        <table>
+          <thead><tr><th>역할</th><th>가입 방식</th><th>가입 시 수집</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><b>어드민</b></td>
+              <td>이메일 — <code>@e-redpoint.com</code> 만 허용</td>
+              <td>이름, 휴대폰, 소속/팀, 비밀번호</td>
+            </tr>
+            <tr>
+              <td><b>검수자</b></td>
+              <td>이메일 직접 가입</td>
+              <td>이름, 휴대폰, 소속, 전문분야, 유형, 담당 카테고리(A–D)</td>
+            </tr>
+            <tr>
+              <td><b>크리에이터</b></td>
+              <td><span class="tag info">권장</span> School.org(프로필) + Studio(콘텐츠) 이중 연결</td>
+              <td>유형, 학교/기관, 전화, Studio·School 이메일, 지급정보(주민·주소·계좌)</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="callout prefer" style="margin-top:14px">
+          <strong>왜 School.org를 프로필 정본으로 권장하는가</strong>
+          Studio는 가입 시 이메일만 받아 이름·학교·전화를 알 수 없습니다.
+          School.org는 상세 프로필이 있고, 게임 ID 신청과도 맞습니다.
+          다만 콘텐츠·티처스 자동 유입은 Studio 쪽이 정본이므로 <b>양쪽 이메일을 모두 저장</b>해 매칭 키로 씁니다.
+        </div>
+        <div class="q"><div class="num">Q15</div><div>크리에이터 로그인 주체를 School.org OAuth로 둘까요, Admin 자체 계정을 두고 연동만 할까요?</div><div class="why">인증 설계</div></div>
+        <div class="q"><div class="num">Q16</div><div>어드민 셀프 가입(@e-redpoint.com)을 허용할까요, 기존 어드민 초대만 허용할까요?</div><div class="why">보안 정책</div></div>
+      </section>
+
+      <!-- 7 checklist -->
+      <section id="ask">
+        <h2>7. 미팅에서 꼭 받아올 것</h2>
+        <p class="sec-desc">체크하며 진행하면 다음 스프린트 착수 조건이 명확해집니다.</p>
+        <ul class="checklist">
+          <li><span class="box"></span><div><b>Studio 웹훅/API</b> — 가능 여부, 이벤트 목록, 담당 엔지니어/문서</div></li>
+          <li><span class="box"></span><div><b>티처스 필터 기준</b> — 어떤 구독/콘텐츠가 Admin으로 올지</div></li>
+          <li><span class="box"></span><div><b>School.org 「이미 신청된 게임」</b> — 원인 + 자동연동 대안 유무</div></li>
+          <li><span class="box"></span><div><b>오리지널 업무 플로우</b> — 신청·배정·기획서/가이드 업로드 주체와 위치</div></li>
+          <li><span class="box"></span><div><b>오리지널/개인 구분 규칙</b> — 시스템 필드 또는 운영 규칙</div></li>
+          <li><span class="box"></span><div><b>AX팀 컨택</b> — 판매 실적 API 스펙·식별자 매핑</div></li>
+          <li><span class="box"></span><div><b>School.org 출시 절차/API</b> — Admin 출시 버튼이 호출할 대상</div></li>
+        </ul>
+        <p class="footer-note">
+          파일 위치: <code>docs/integration-briefing.html</code> · Cursor Canvas: <code>integration-briefing</code><br />
+          브라우저에서 이 파일을 열면 발표·화면공유에 바로 쓸 수 있습니다. 인쇄(PDF)도 지원합니다.
+        </p>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const links = [...document.querySelectorAll('nav a')];
+    const sections = links.map(a => document.querySelector(a.getAttribute('href'))).filter(Boolean);
+    const obs = new IntersectionObserver((entries) => {
+      entries.forEach(en => {
+        if (!en.isIntersecting) return;
+        links.forEach(l => l.classList.toggle('active', l.getAttribute('href') === '#' + en.target.id));
+      });
+    }, { rootMargin: '-20% 0px -60% 0px', threshold: 0 });
+    sections.forEach(s => obs.observe(s));
+  </script>
+</body>
+</html>

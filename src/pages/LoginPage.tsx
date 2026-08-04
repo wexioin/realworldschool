@@ -1,10 +1,10 @@
 import React, { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { clsx } from 'clsx';
 import { GraduationCap, Eye, EyeOff, AlertCircle, LogIn, ChevronDown } from 'lucide-react';
 import { useLogin, useAccounts, DEMO_PASSWORD } from '../api';
 import type { UserAccount, UserRole, LoginFailure } from '../api/types';
-import { LoginError } from '../api/types';
+import { LoginError, ADMIN_EMAIL_DOMAIN } from '../api/types';
 import { useSessionMaybe, ROLE_LABEL, ROLE_HOME } from '../session';
 
 // ─────────────────────────────────────────────────────────────
@@ -80,7 +80,7 @@ export default function LoginPage() {
               autoComplete="username"
               value={email}
               onChange={e => setEmail(e.target.value)}
-              placeholder="name@realworld-school.org"
+              placeholder={`name@${ADMIN_EMAIL_DOMAIN}`}
               className="w-full px-3 py-2.5 text-sm bg-white border border-gray-200 rounded-lg focus:outline-none focus:border-primary-400"
             />
           </div>
@@ -122,6 +122,11 @@ export default function LoginPage() {
             <LogIn size={15} /> {login.isPending ? '로그인 중...' : '로그인'}
           </button>
         </form>
+
+        <p className="text-center text-xs text-gray-400 mt-4">
+          계정이 없나요?{' '}
+          <Link to="/signup" className="text-primary-600 font-medium hover:underline">회원가입</Link>
+        </p>
 
         <DemoAccounts onPick={useDemoAccount} disabled={login.isPending} />
       </div>
